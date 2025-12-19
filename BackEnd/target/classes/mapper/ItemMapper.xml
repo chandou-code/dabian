@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campus.lostfound.mapper.ItemMapper">
+
+    <select id="selectItemPage" resultType="com.campus.lostfound.entity.Item">
+        SELECT * FROM items 
+        WHERE deleted = 0
+        <if test="type != null and type != '' and type != 'all'">
+            AND type = #{type}
+        </if>
+        <if test="category != null and category != ''">
+            AND category = #{category}
+        </if>
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (item_name LIKE CONCAT('%', #{keyword}, '%') 
+                 OR description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="location != null and location != ''">
+            AND location LIKE CONCAT('%', #{location}, '%')
+        </if>
+        <if test="submitterId != null">
+            AND submitter_id = #{submitterId}
+        </if>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectUserStatistics" resultType="com.campus.lostfound.entity.Item">
+        SELECT * FROM items 
+        WHERE submitter_id = #{submitterId} AND deleted = 0
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectPendingItems" resultType="com.campus.lostfound.entity.Item">
+        SELECT * FROM items 
+        WHERE deleted = 0
+        <if test="type != null and type != '' and type != 'all'">
+            AND type = #{type}
+        </if>
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (item_name LIKE CONCAT('%', #{keyword}, '%') 
+                 OR description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY created_at ASC
+    </select>
+
+    <select id="searchItems" resultType="com.campus.lostfound.entity.Item">
+        SELECT * FROM items 
+        WHERE deleted = 0 AND status = 'approved'
+        <if test="keyword != null and keyword != ''">
+            AND (item_name LIKE CONCAT('%', #{keyword}, '%') 
+                 OR description LIKE CONCAT('%', #{keyword}, '%')
+                 OR location LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="type != null and type != '' and type != 'all'">
+            AND type = #{type}
+        </if>
+        <if test="category != null and category != ''">
+            AND category = #{category}
+        </if>
+        <if test="timeRange != null and timeRange != ''">
+            <if test="timeRange == 'week'">
+                AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            </if>
+            <if test="timeRange == 'month'">
+                AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            </if>
+            <if test="timeRange == 'quarter'">
+                AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+            </if>
+        </if>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectRecentActivities" resultType="com.campus.lostfound.entity.Item">
+        SELECT * FROM items 
+        WHERE submitter_id = #{userId} AND deleted = 0
+        ORDER BY created_at DESC
+        <if test="limit != null and limit > 0">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <select id="selectRecommendedMatches" resultType="com.campus.lostfound.entity.Item">
+        SELECT * FROM items 
+        WHERE deleted = 0 
+        AND status = 'approved'
+        AND type != (SELECT type FROM items WHERE submitter_id = #{userId} AND deleted = 0 ORDER BY created_at DESC LIMIT 1)
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        ORDER BY created_at DESC
+        LIMIT 5
+    </select>
+
+
+
+    <select id="countItems" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE deleted = 0
+        <if test="type != null and type != ''">
+            AND type = #{type}
+        </if>
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+        <if test="submitterId != null">
+            AND submitter_id = #{submitterId}
+        </if>
+    </select>
+
+    <select id="selectDailyStatistics" resultType="com.campus.lostfound.entity.Item">
+        SELECT 
+            DATE(created_at) as date,
+            SUM(CASE WHEN type = 'lost' THEN 1 ELSE 0 END) as lostCount,
+            SUM(CASE WHEN type = 'found' THEN 1 ELSE 0 END) as foundCount,
+            SUM(CASE WHEN status = 'recovered' THEN 1 ELSE 0 END) as recoveredCount
+        FROM items 
+        WHERE deleted = 0
+        <if test="startDate != null">
+            AND created_at >= #{startDate}
+        </if>
+        <if test="endDate != null">
+            AND created_at &lt;= #{endDate}
+        </if>
+        GROUP BY DATE(created_at)
+        ORDER BY date DESC
+    </select>
+
+    
+    <select id="getCategoryStatistics" resultType="java.util.Map">
+        SELECT 
+            category,
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'recovered' OR status = 'found' THEN 1 ELSE 0 END) as recovered,
+            ROUND(
+                SUM(CASE WHEN status = 'recovered' OR status = 'found' THEN 1 ELSE 0 END) * 100.0 / 
+                NULLIF(COUNT(*), 0), 
+                1
+            ) as recoveryRate,
+            ROUND(
+                AVG(
+                    CASE 
+                        WHEN status IN ('recovered', 'found') AND created_at IS NOT NULL 
+                        THEN DATEDIFF(
+                            COALESCE(
+                                CASE 
+                                    WHEN status = 'recovered' THEN updated_at 
+                                    ELSE created_at 
+                                END, 
+                                created_at
+                            ), 
+                            0
+                        ) 
+                        ELSE NULL 
+                    END
+                ), 
+                1
+            ) as avgRecoveryTime
+        FROM items 
+        WHERE deleted = 0 AND category IS NOT NULL
+        GROUP BY category
+        ORDER BY total DESC
+    </select>
+
+    <!-- 更新浏览次数 -->
+    <update id="updateViewCount">
+        UPDATE items 
+        SET view_count = IFNULL(view_count, 0) + 1 
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+</mapper>

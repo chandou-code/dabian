@@ -1,0 +1,197 @@
+### 校园失物招领系统 - API测试脚本
+
+@base_url = http://localhost:8080/api
+@token = Bearer your-token-here
+
+### 1. 系统健康检查
+GET {{base_url}}/test/health
+
+### 2. 获取系统信息
+GET {{base_url}}/test/info
+
+### 3. 用户登录
+POST {{base_url}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "123456"
+}
+
+### 4. 用户注册
+POST {{base_url}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "testuser2",
+  "password": "123456",
+  "email": "test2@example.com",
+  "phone": "13800138002",
+  "realName": "李四",
+  "gender": 2,
+  "college": "计算机学院",
+  "grade": "2022级",
+  "major": "软件工程"
+}
+
+### 5. 检查用户名是否存在
+GET {{base_url}}/auth/check-username/newuser
+
+### 6. 获取物品列表
+GET {{base_url}}/items?current=1&pageSize=10
+
+### 7. 搜索物品
+GET {{base_url}}/items/search?q=钱包&type=all&current=1&pageSize=10
+
+### 8. 发布失物信息
+POST {{base_url}}/items/lost
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+  "title": "丢失白色手机",
+  "itemName": "iPhone 14",
+  "category": "电子设备",
+  "itemTime": "2024-01-20T10:30:00",
+  "location": "图书馆",
+  "locationDetail": "三楼自习室",
+  "description": "白色iPhone 14，有透明手机壳",
+  "contact": "13800138003"
+}
+
+### 9. 发布招领信息
+POST {{base_url}}/items/found
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+  "title": "拾到黑色钱包",
+  "itemName": "黑色钱包",
+  "category": "证件类",
+  "itemTime": "2024-01-20T14:00:00",
+  "location": "食堂",
+  "locationDetail": "二楼餐桌",
+  "description": "黑色皮质钱包，内有校园卡",
+  "contact": "13800138004",
+  "pickupLocation": "学生处"
+}
+
+### 10. 获取物品详情
+GET {{base_url}}/items/1
+
+### 11. 获取待审核列表
+GET {{base_url}}/review/pending?current=1&pageSize=10
+Authorization: {{token}}
+
+### 12. 审核通过
+POST {{base_url}}/review/approve/1
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+  "comment": "信息真实有效，审核通过"
+}
+
+### 13. 审核驳回
+POST {{base_url}}/review/reject/2
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+  "reason": "信息不完整，请补充详细描述"
+}
+
+### 14. 批量审核
+POST {{base_url}}/review/batch
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+  "itemIds": [1, 2],
+  "action": "approve",
+  "reason": "批量审核通过"
+}
+
+### 15. 获取用户列表（管理员）
+GET {{base_url}}/admin/users?current=1&pageSize=10
+Authorization: {{token}}
+
+### 16. 更新用户状态（管理员）
+PUT {{base_url}}/admin/users/1/status
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+  "status": 0
+}
+
+### 17. 重置用户密码（管理员）
+POST {{base_url}}/admin/users/1/reset-password
+Authorization: {{token}}
+
+### 18. 获取统计数据
+GET {{base_url}}/items/stats/user
+Authorization: {{token}}
+
+### 19. 获取管理员统计数据
+GET {{base_url}}/admin/stats
+Authorization: {{token}}
+
+### 20. 获取审核员统计数据
+GET {{base_url}}/review/stats
+Authorization: {{token}}
+
+### 21. 获取仪表板数据
+GET {{base_url}}/admin/dashboard
+Authorization: {{token}}
+
+### 22. 获取系统配置
+GET {{base_url}}/admin/system/config
+Authorization: {{token}}
+
+### 23. 更新系统配置
+PUT {{base_url}}/admin/system/settings
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+  "site_name": "校园失物招领平台",
+  "max_image_count": "8"
+}
+
+### 24. 获取通知列表
+GET {{base_url}}/notifications?current=1&pageSize=10
+Authorization: {{token}}
+
+### 25. 获取未读通知数量
+GET {{base_url}}/notifications/unread-count
+Authorization: {{token}}
+
+### 26. 标记通知为已读
+PUT {{base_url}}/notifications/1/read
+Authorization: {{token}}
+
+### 27. 创建通知
+POST {{base_url}}/notifications
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+  "userId": 1,
+  "title": "系统通知",
+  "content": "您的物品已通过审核",
+  "type": "review",
+  "relatedItemId": 1
+}
+
+### 28. 上传文件
+POST {{base_url}}/upload/image
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+Authorization: {{token}}
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="test.jpg"
+Content-Type: image/jpeg
+
+< ./test.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--

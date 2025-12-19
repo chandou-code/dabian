@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campus.lostfound.mapper.NotificationMapper">
+
+    <select id="selectNotificationPage" resultType="com.campus.lostfound.entity.Notification">
+        SELECT * FROM notifications 
+        WHERE 1=1
+        <if test="userId != null">
+            AND user_id = #{userId}
+        </if>
+        <if test="type != null and type != ''">
+            AND type = #{type}
+        </if>
+        <if test="isRead != null">
+            AND is_read = #{isRead}
+        </if>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="getUnreadCount" resultType="int">
+        SELECT COUNT(*) FROM notifications 
+        WHERE user_id = #{userId} AND is_read = 0 
+    </select>
+
+    <update id="markAsRead">
+        UPDATE notifications 
+        SET is_read = 1
+        WHERE id = #{notificationId}
+    </update>
+
+    <update id="batchMarkAsRead">
+        UPDATE notifications 
+        SET is_read = 1
+        WHERE id IN
+        <foreach collection="notificationIds" item="id" open="(" close=")" separator=",">
+            #{id}
+        </foreach>
+    </update>
+
+
+
+</mapper>

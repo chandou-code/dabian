@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campus.lostfound.mapper.UserMapper">
+
+    <select id="selectByUsername" resultType="com.campus.lostfound.entity.User">
+        SELECT * FROM users 
+        WHERE username = #{username} AND deleted = 0
+    </select>
+
+    <select id="selectUserPage" resultType="com.campus.lostfound.entity.User">
+        SELECT * FROM users 
+        WHERE deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (username LIKE CONCAT('%', #{keyword}, '%') 
+                 OR real_name LIKE CONCAT('%', #{keyword}, '%') 
+                 OR email LIKE CONCAT('%', #{keyword}, '%') 
+                 OR phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="role != null and role != ''">
+            AND role = #{role}
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY created_at DESC
+    </select>
+
+
+
+    <select id="countUsers" resultType="int">
+        SELECT COUNT(*) FROM users 
+        WHERE deleted = 0
+        <if test="role != null and role != ''">
+            AND role = #{role}
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+    </select>
+
+</mapper>
