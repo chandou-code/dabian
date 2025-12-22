@@ -4,8 +4,10 @@ import com.campus.lostfound.common.Result;
 import com.campus.lostfound.common.constants.StatusConstants;
 import com.campus.lostfound.entity.Notification;
 import com.campus.lostfound.service.NotificationService;
+import com.campus.lostfound.util.JwtUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +25,9 @@ public class NotificationController {
     @Autowired
     private NotificationService notificationService;
     
+    @Autowired
+    private JwtUtil jwtUtil;
+    
     @GetMapping
     public Result<Map<String, Object>> getNotifications(
             @RequestParam(defaultValue = "1") int current,
@@ -32,8 +37,10 @@ public class NotificationController {
             @RequestHeader("Authorization") String token) {
         
         try {
-            // TODO: 从token中获取用户ID
-            Long userId = 1L; // 临时硬编码，实际应该从JWT中解析
+            Long userId = extractUserIdFromToken(token);
+            if (userId == null) {
+                return Result.error("无效的访问令牌");
+            }
             
             var page = notificationService.getNotificationPage(userId, current, pageSize, type, isRead);
             
@@ -57,8 +64,10 @@ public class NotificationController {
     @GetMapping("/unread-count")
     public Result<Map<String, Integer>> getUnreadCount(@RequestHeader("Authorization") String token) {
         try {
-            // TODO: 从token中获取用户ID
-            Long userId = 1L; // 临时硬编码，实际应该从JWT中解析
+            Long userId = extractUserIdFromToken(token);
+            if (userId == null) {
+                return Result.error("无效的访问令牌");
+            }
             
             int count = notificationService.getUnreadCount(userId);
             return Result.success(Map.of("count", count));
@@ -88,8 +97,10 @@ public class NotificationController {
     public Result batchMarkAsRead(@RequestBody Map<String, Object> request,
                                    @RequestHeader("Authorization") String token) {
         try {
-            // TODO: 从token中获取用户ID
-            Long userId = 1L; // 临时硬编码，实际应该从JWT中解析
+            Long userId = extractUserIdFromToken(token);
+            if (userId == null) {
+                return Result.error("无效的访问令牌");
+            }
             
             @SuppressWarnings("unchecked")
             List<Long> notificationIds = ((List<Integer>) request.get("notificationIds"))
@@ -112,8 +123,10 @@ public class NotificationController {
     @PutMapping("/all-read")
     public Result markAllAsRead(@RequestHeader("Authorization") String token) {
         try {
-            // TODO: 从token中获取用户ID
-            Long userId = 1L; // 临时硬编码，实际应该从JWT中解析
+            Long userId = extractUserIdFromToken(token);
+            if (userId == null) {
+                return Result.error("无效的访问令牌");
+            }
             
             boolean success = notificationService.markAllAsRead(userId);
             if (success) {
@@ -147,8 +160,10 @@ public class NotificationController {
     public Result batchDeleteNotifications(@RequestBody Map<String, Object> request,
                                           @RequestHeader("Authorization") String token) {
         try {
-            // TODO: 从token中获取用户ID
-            Long userId = 1L; // 临时硬编码，实际应该从JWT中解析
+            Long userId = extractUserIdFromToken(token);
+            if (userId == null) {
+                return Result.error("无效的访问令牌");
+            }
             
             @SuppressWarnings("unchecked")
             List<Long> notificationIds = ((List<Integer>) request.get("notificationIds"))
@@ -171,8 +186,10 @@ public class NotificationController {
     @DeleteMapping("/all")
     public Result clearAllNotifications(@RequestHeader("Authorization") String token) {
         try {
-            // TODO: 从token中获取用户ID
-            Long userId = 1L; // 临时硬编码，实际应该从JWT中解析
+            Long userId = extractUserIdFromToken(token);
+            if (userId == null) {
+                return Result.error("无效的访问令牌");
+            }
             
             boolean success = notificationService.clearAllNotifications(userId);
             if (success) {
@@ -208,6 +225,24 @@ public class NotificationController {
         } catch (Exception e) {
             log.error("创建通知失败", e);
             return Result.error("创建失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 从Authorization头中提取用户ID
+     */
+    private Long extractUserIdFromToken(String authorization) {
+        if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
+            log.warn("无效的Authorization头: {}", authorization);
+            return null;
+        }
+        
+        String token = authorization.substring(7);
+        try {
+            return jwtUtil.getUserIdFromToken(token);
+        } catch (Exception e) {
+            log.error("从token中提取用户ID失败", e);
+            return null;
         }
     }
 }

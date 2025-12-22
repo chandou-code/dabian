@@ -45,3 +45,8 @@ export const updateItem = (itemId, itemInfo) => {
 export const deleteItem = (itemId) => {
   return del(`/items/items/${itemId}`)
 }
+
+// 更新物品图片关联关系
+export const updateItemImageAssociation = (data) => {
+  return post('/items/update-image-association', data)
+}

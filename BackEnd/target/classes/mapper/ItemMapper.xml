@@ -173,4 +173,96 @@
         WHERE id = #{id} AND deleted = 0
     </update>
 
+    
+    <!-- 仪表板相关查询 -->
+    
+    <!-- 获取用户失物统计 -->
+    <select id="getUserLostCount" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE submitter_id = #{userId} AND type = 'lost' AND deleted = 0
+    </select>
+    
+    <!-- 获取用户招领统计 -->
+    <select id="getUserFoundCount" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE submitter_id = #{userId} AND type = 'found' AND deleted = 0
+    </select>
+    
+    <!-- 获取用户已找回物品统计 -->
+    <select id="getUserRecoveredCount" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE submitter_id = #{userId} AND status = 'claimed' AND deleted = 0
+    </select>
+    
+    <!-- 获取用户待处理信息统计（待审核的物品） -->
+    <select id="getUserPendingCount" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE submitter_id = #{userId} AND status = 'pending' AND deleted = 0
+    </select>
+    
+    <!-- 获取用户最近活动 -->
+    <select id="selectUserRecentActivities" resultType="com.campus.lostfound.entity.Item">
+        SELECT i.*, u.real_name as submitter_name, 
+               CASE 
+                   WHEN i.status = 'pending' THEN 'pending'
+                   WHEN i.status = 'approved' THEN 'approved'
+                   WHEN i.status = 'rejected' THEN 'rejected'
+                   WHEN i.status = 'claimed' THEN 'recovered'
+                   ELSE 'pending'
+               END as activity_status
+        FROM items i
+        LEFT JOIN users u ON i.submitter_id = u.id
+        WHERE i.submitter_id = #{userId} AND i.deleted = 0
+        ORDER BY i.created_at DESC
+        LIMIT #{limit}
+    </select>
+    
+    <!-- 获取推荐匹配物品 -->
+    <select id="selectRecommendedMatches" resultType="com.campus.lostfound.entity.Item">
+        SELECT DISTINCT i.*,
+               CASE 
+                   WHEN EXISTS (
+                       SELECT 1 FROM matches m 
+                       WHERE (m.lost_item_id = i.id OR m.found_item_id = i.id)
+                       AND m.status = 'pending'
+                   ) THEN true
+                   ELSE false
+               END as has_pending_match
+        FROM items i
+        WHERE i.deleted = 0 
+        AND i.status = 'approved'
+        AND i.submitter_id != #{userId}
+        AND (
+            -- 找到用户可能感兴趣的物品（基于位置、类别等）
+            i.location IN (SELECT DISTINCT location FROM items WHERE submitter_id = #{userId} AND deleted = 0)
+            OR 
+            i.category IN (SELECT DISTINCT category FROM items WHERE submitter_id = #{userId} AND deleted = 0)
+        )
+        ORDER BY i.created_at DESC
+        LIMIT 10
+    </select>
+    
+    <!-- 获取用户待审核数量 -->
+    <select id="getUserPendingReviewCount" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE submitter_id = #{userId} AND status = 'pending' AND deleted = 0
+    </select>
+    
+    <!-- 获取未读通知数量 -->
+    <select id="getUserUnreadNotificationCount" resultType="int">
+        SELECT COUNT(*) FROM notifications 
+        WHERE user_id = #{userId} AND is_read = 0
+    </select>
+    
+    <!-- 获取用户物品统计详情 -->
+    <select id="getUserItemStats" resultType="map">
+        SELECT 
+            SUM(CASE WHEN type = 'lost' THEN 1 ELSE 0 END) as totalLost,
+            SUM(CASE WHEN type = 'found' THEN 1 ELSE 0 END) as totalFound,
+            SUM(CASE WHEN status = 'claimed' THEN 1 ELSE 0 END) as recovered,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending
+        FROM items 
+        WHERE submitter_id = #{userId} AND deleted = 0
+    </select>
+
 </mapper>

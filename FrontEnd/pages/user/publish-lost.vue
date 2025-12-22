@@ -110,7 +110,7 @@
                 </view>
                 
                 <view 
-                  v-if="form.images.length < 4" 
+                  v-if="form.images.length < 6" 
                   class="upload-placeholder"
                   @click="chooseImage"
                 >
@@ -118,7 +118,7 @@
                   <text class="upload-text">上传图片</text>
                 </view>
               </view>
-              <text class="upload-tip">最多上传4张图片，支持JPG/PNG格式</text>
+              <text class="upload-tip">最多上传6张图片，支持JPG/PNG格式，单张不超过5MB</text>
             </view>
           </view>
           
@@ -166,6 +166,7 @@
 <script>
 import Sidebar from '@/components/Sidebar.vue'
 import * as api from '@/api'
+import { uploadItemImages, getItemImages } from '@/api/upload'
 
 export default {
   name: 'PublishLost',
@@ -190,6 +191,8 @@ export default {
         contact: '',
         images: []
       },
+      uploadedImages: [], // 存储已上传的图片信息
+      itemId: null, // 发布成功后的物品ID
       errors: {},
       isSubmitting: false,
       isAiProcessing: false,
@@ -207,15 +210,53 @@ export default {
       this.form.lostTime = e.detail.value
     },
     
-    chooseImage() {
+    async chooseImage() {
+      const maxCount = 6 - this.form.images.length
+      
       uni.chooseImage({
-        count: 4 - this.form.images.length,
+        count: maxCount,
         sizeType: ['compressed'],
         sourceType: ['album', 'camera'],
-        success: (res) => {
-          this.form.images.push(...res.tempFilePaths)
+        success: async (res) => {
+          try {
+            uni.showLoading({
+              title: '上传中...'
+            })
+            
+            // 上传图片到服务器
+            const files = res.tempFilePaths.map((tempPath, index) => {
+              return {
+                path: tempPath
+              }
+            })
+            
+            const uploadResult = await uploadItemImages(files, 'lost', this.itemId)
+            
+            if (uploadResult && uploadResult.data) {
+              // 添加到表单图片数组
+              const newImages = uploadResult.data.map(img => img.url)
+              this.form.images.push(...newImages)
+              
+              // 添加到已上传图片信息
+              this.uploadedImages.push(...uploadResult.data)
+              
+              uni.showToast({
+                title: '图片上传成功',
+                icon: 'success'
+              })
+            }
+          } catch (error) {
+            console.error('图片上传失败:', error)
+            uni.showToast({
+              title: '图片上传失败',
+              icon: 'none'
+            })
+          } finally {
+            uni.hideLoading()
+          }
         },
         fail: (err) => {
+          console.error('选择图片失败:', err)
           uni.showToast({
             title: '选择图片失败',
             icon: 'none'
@@ -225,7 +266,11 @@ export default {
     },
     
     deleteImage(index) {
+      // 从表单中删除
       this.form.images.splice(index, 1)
+      
+      // 从已上传图片信息中删除
+      this.uploadedImages.splice(index, 1)
     },
     
     async aiRecognition() {
@@ -360,7 +405,7 @@ export default {
         console.log('调用API发布失物信息，URL:', '/items/lost-items')
         console.log('请求数据:', this.form)
         
-        // 转换images数组为JSON字符串，适应后端需求
+        // 准备表单数据
         const formData = { ...this.form }
         formData.images = JSON.stringify(this.form.images)
         formData.type = 'lost' // 明确设置类型为失物
@@ -369,6 +414,24 @@ export default {
         // 调用真实API发布失物信息
         const response = await api.publishLostItem(formData)
         console.log('API请求成功，响应:', response)
+        
+        // 如果有图片，将图片与物品ID关联
+        if (response && response.data && this.form.images.length > 0) {
+          this.itemId = response.data.id
+          
+          try {
+            // 更新数据库中的图片关联关系
+            await api.updateItemImageAssociation({
+              itemId: this.itemId,
+              itemType: 'lost',
+              imageUrls: this.form.images
+            })
+            console.log('图片与物品关联成功')
+          } catch (imageError) {
+            console.error('图片关联失败:', imageError)
+            // 不影响主流程，但记录错误
+          }
+        }
         
         uni.showToast({
           title: '发布成功',

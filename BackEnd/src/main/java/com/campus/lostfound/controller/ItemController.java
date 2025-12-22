@@ -3,12 +3,14 @@ package com.campus.lostfound.controller;
 import com.campus.lostfound.common.Result;
 import com.campus.lostfound.entity.Item;
 import com.campus.lostfound.service.ItemService;
+import com.campus.lostfound.service.ItemImageService;
 import com.campus.lostfound.util.JwtUtil;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,9 @@ public class ItemController {
     
     @Autowired
     private JwtUtil jwtUtil;
+    
+    @Autowired
+    private ItemImageService itemImageService;
     
     /**
      * 从Authorization头中提取用户ID
@@ -446,6 +451,109 @@ public class ItemController {
         } catch (Exception e) {
             log.error("获取推荐匹配失败", e);
             return Result.error("获取推荐匹配失败：" + e.getMessage());
+        }
+    }
+    
+    // ========== 图片上传相关接口 ==========
+    
+    /**
+     * 为物品上传图片
+     */
+    @PostMapping("/{id}/images")
+    public Result<List<Map<String, Object>>> uploadItemImages(
+            @PathVariable Long id,
+            @RequestParam("files") List<MultipartFile> files,
+            @RequestHeader("Authorization") String authorization) {
+        try {
+            Long userId = extractUserIdFromToken(authorization);
+            if (userId == null) {
+                return Result.error("用户未登录或token无效");
+            }
+            
+            // 验证物品是否存在且属于当前用户
+            Item item = itemService.getById(id);
+            if (item == null) {
+                return Result.error("物品不存在");
+            }
+            
+            if (!item.getSubmitterId().equals(userId)) {
+                return Result.error("无权限为此物品上传图片");
+            }
+            
+            List<Map<String, Object>> result = itemImageService.uploadItemImages(
+                files, item.getType(), id, userId);
+            
+            return Result.success("图片上传成功", result);
+        } catch (Exception e) {
+            log.error("物品图片上传失败", e);
+            return Result.error("上传失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取物品图片列表
+     */
+    @GetMapping("/{id}/images")
+    public Result<List<Map<String, Object>>> getItemImages(@PathVariable Long id) {
+        try {
+            List<Map<String, Object>> images = itemImageService.getItemImages(id);
+            return Result.success("获取成功", images);
+        } catch (Exception e) {
+            log.error("获取物品图片失败", e);
+            return Result.error("获取失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 删除物品图片
+     */
+    @DeleteMapping("/images/{uploadId}")
+    public Result deleteItemImage(
+            @PathVariable Long uploadId,
+            @RequestHeader("Authorization") String authorization) {
+        try {
+            Long userId = extractUserIdFromToken(authorization);
+            if (userId == null) {
+                return Result.error("用户未登录或token无效");
+            }
+            
+            boolean success = itemImageService.deleteItemImage(uploadId, userId);
+            if (success) {
+                return Result.success("删除成功");
+            } else {
+                return Result.error("删除失败");
+            }
+        } catch (Exception e) {
+            log.error("删除物品图片失败", e);
+            return Result.error("删除失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 更新物品图片关联关系
+     */
+    @PostMapping("/update-image-association")
+    public Result updateImageAssociation(@RequestBody Map<String, Object> data, @RequestHeader("Authorization") String authorization) {
+        try {
+            Long userId = extractUserIdFromToken(authorization);
+            if (userId == null) {
+                return Result.error("用户未登录或token无效");
+            }
+            
+            Long itemId = ((Number) data.get("itemId")).longValue();
+            String itemType = (String) data.get("itemType");
+            @SuppressWarnings("unchecked")
+            List<String> imageUrls = (List<String>) data.get("imageUrls");
+            
+            boolean success = itemImageService.updateItemImageAssociation(itemId, itemType, imageUrls, userId);
+            if (success) {
+                return Result.success("图片关联更新成功");
+            } else {
+                return Result.error("图片关联更新失败");
+            }
+        } catch (Exception e) {
+            log.error("更新图片关联关系失败", e);
+            return Result.error("更新失败：" + e.getMessage());
         }
     }
     

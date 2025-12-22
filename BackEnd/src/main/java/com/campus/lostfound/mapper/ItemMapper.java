@@ -96,4 +96,41 @@ public interface ItemMapper extends BaseMapper<Item> {
      * 获取类别统计
      */
     List<Map<String, Object>> getCategoryStatistics();
+    
+    // ===== 仪表板相关查询方法 =====
+    
+    /**
+     * 获取用户失物数量
+     */
+    int getUserLostCount(@Param("userId") Long userId);
+    
+    /**
+     * 获取用户招领数量
+     */
+    int getUserFoundCount(@Param("userId") Long userId);
+    
+    /**
+     * 获取用户已找回物品数量
+     */
+    int getUserRecoveredCount(@Param("userId") Long userId);
+    
+    /**
+     * 获取用户待处理信息数量
+     */
+    int getUserPendingCount(@Param("userId") Long userId);
+    
+    /**
+     * 获取用户待审核数量
+     */
+    int getUserPendingReviewCount(@Param("userId") Long userId);
+    
+    /**
+     * 获取用户未读通知数量
+     */
+    int getUserUnreadNotificationCount(@Param("userId") Long userId);
+    
+    /**
+     * 获取用户物品统计详情
+     */
+    Map<String, Object> getUserItemStats(@Param("userId") Long userId);
 }

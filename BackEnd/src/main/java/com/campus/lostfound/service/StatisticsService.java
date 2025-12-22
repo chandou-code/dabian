@@ -1,5 +1,7 @@
 package com.campus.lostfound.service;
 
+import com.campus.lostfound.dto.DashboardDTO;
+import com.campus.lostfound.mapper.ItemMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,20 @@ public class StatisticsService {
     
     @Autowired
     private ReviewService reviewService;
+    
+    @Autowired
+    private ActivityService activityService;
+    
+    @Autowired
+    private MatchService matchService;
+    
+    @Autowired
+    private ItemMapper itemMapper;
+    
+    // 提供给Controller调用的公共方法
+    public ItemMapper getItemMapper() {
+        return itemMapper;
+    }
     
     /**
      * 获取统计数据
@@ -50,27 +66,157 @@ public class StatisticsService {
     /**
      * 获取用户仪表盘统计
      */
-    public Map<String, Object> getUserDashboard(Long userId) {
-        Map<String, Object> dashboard = new HashMap<>();
+    public DashboardDTO getUserDashboard(Long userId) {
+        DashboardDTO dashboard = new DashboardDTO();
         
-        // 用户统计
-        int totalPosted = itemService.getTotalPostedCount(userId);
-        int totalFound = itemService.getTotalFoundCount(userId);
-        double recoveryRate = totalPosted > 0 ? (double) totalFound / totalPosted * 100 : 0;
-        
-        dashboard.put("totalPosted", totalPosted);
-        dashboard.put("totalFound", totalFound);
-        dashboard.put("recoveryRate", Math.round(recoveryRate * 10.0) / 10.0);
-        
-        // 最近活动
-        List<Map<String, Object>> recentActivities = getRecentActivities(userId);
-        dashboard.put("recentActivities", recentActivities);
-        
-        // 推荐匹配
-        List<Map<String, Object>> recommendedMatches = getRecommendedMatches(userId);
-        dashboard.put("recommendedMatches", recommendedMatches);
+        try {
+            // 1. 获取用户统计信息
+            DashboardDTO.UserStatsDTO userStats = getUserStatistics(userId);
+            dashboard.setUserStats(userStats);
+            
+            // 2. 获取最近活动
+            List<DashboardDTO.ActivityDTO> recentActivities = activityService.getUserRecentActivities(userId, 10);
+            dashboard.setRecentActivities(recentActivities);
+            
+            // 3. 获取推荐匹配
+            List<DashboardDTO.MatchItemDTO> recommendedMatches = matchService.getRecommendedMatches(userId);
+            dashboard.setRecommendedMatches(recommendedMatches);
+            
+            log.info("获取用户{}仪表板数据成功", userId);
+            
+        } catch (Exception e) {
+            log.error("获取用户仪表板数据失败", e);
+            // 返回空数据而不是null，避免前端报错
+            dashboard.setUserStats(new DashboardDTO.UserStatsDTO());
+            dashboard.setRecentActivities(new ArrayList<>());
+            dashboard.setRecommendedMatches(new ArrayList<>());
+        }
         
         return dashboard;
+    }
+    
+    /**
+     * 获取用户统计信息
+     */
+    private DashboardDTO.UserStatsDTO getUserStatistics(Long userId) {
+        DashboardDTO.UserStatsDTO userStats = new DashboardDTO.UserStatsDTO();
+        
+        try {
+            // 从数据库获取真实统计数据
+            Map<String, Object> statsMap = itemMapper.getUserItemStats(userId);
+            
+            log.info("用户{}的原始统计数据: {}", userId, statsMap);
+            
+            userStats.setTotalLost(statsMap.get("totalLost") != null ? 
+                Integer.parseInt(statsMap.get("totalLost").toString()) : 0);
+            userStats.setTotalFound(statsMap.get("totalFound") != null ? 
+                Integer.parseInt(statsMap.get("totalFound").toString()) : 0);
+            userStats.setRecovered(statsMap.get("recovered") != null ? 
+                Integer.parseInt(statsMap.get("recovered").toString()) : 0);
+            userStats.setPending(statsMap.get("pending") != null ? 
+                Integer.parseInt(statsMap.get("pending").toString()) : 0);
+            
+            // 获取额外的统计信息
+            int pendingReviewCount = itemMapper.getUserPendingReviewCount(userId);
+            int unreadNotificationCount = itemMapper.getUserUnreadNotificationCount(userId);
+            
+            userStats.setPendingReview(pendingReviewCount);
+            userStats.setUnreadNotifications(unreadNotificationCount);
+            
+            log.info("用户{}处理后的统计数据: totalLost={}, totalFound={}, recovered={}, pending={}, pendingReview={}, unreadNotifications={}", 
+                userId, userStats.getTotalLost(), userStats.getTotalFound(), 
+                userStats.getRecovered(), userStats.getPending(), 
+                userStats.getPendingReview(), userStats.getUnreadNotifications());
+            
+        } catch (Exception e) {
+            log.error("获取用户{}统计信息失败", userId, e);
+            // 设置默认值
+            userStats.setTotalLost(0);
+            userStats.setTotalFound(0);
+            userStats.setRecovered(0);
+            userStats.setPending(0);
+            userStats.setPendingReview(0);
+            userStats.setUnreadNotifications(0);
+        }
+        
+        return userStats;
+    }
+    
+    /**
+     * 获取用户仪表板统计（兼容旧接口）
+     */
+    public Map<String, Object> getUserDashboardMap(Long userId) {
+        DashboardDTO dashboard = getUserDashboard(userId);
+        
+        // 转换为Map格式以保持向后兼容
+        Map<String, Object> resultMap = new HashMap<>();
+        
+        // 用户统计信息
+        if (dashboard.getUserStats() != null) {
+            DashboardDTO.UserStatsDTO stats = dashboard.getUserStats();
+            resultMap.put("totalLost", stats.getTotalLost());
+            resultMap.put("totalFound", stats.getTotalFound());
+            resultMap.put("recovered", stats.getRecovered());
+            resultMap.put("pending", stats.getPending());
+            resultMap.put("pendingReview", stats.getPendingReview());
+            resultMap.put("unreadNotifications", stats.getUnreadNotifications());
+        }
+        
+        // 最近活动
+        if (dashboard.getRecentActivities() != null) {
+            resultMap.put("recentActivities", convertActivitiesToMap(dashboard.getRecentActivities()));
+        }
+        
+        // 推荐匹配
+        if (dashboard.getRecommendedMatches() != null) {
+            resultMap.put("recommendedMatches", convertMatchesToMap(dashboard.getRecommendedMatches()));
+        }
+        
+        return resultMap;
+    }
+    
+    /**
+     * 将ActivityDTO列表转换为Map列表
+     */
+    private List<Map<String, Object>> convertActivitiesToMap(List<DashboardDTO.ActivityDTO> activities) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        for (DashboardDTO.ActivityDTO activity : activities) {
+            Map<String, Object> activityMap = new HashMap<>();
+            activityMap.put("id", activity.getId());
+            activityMap.put("icon", activity.getIcon());
+            activityMap.put("title", activity.getTitle());
+            activityMap.put("description", activity.getDescription());
+            activityMap.put("time", activity.getTime());
+            activityMap.put("type", activity.getType());
+            activityMap.put("status", activity.getStatus());
+            activityMap.put("relatedItemId", activity.getRelatedItemId());
+            result.add(activityMap);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 将MatchItemDTO列表转换为Map列表
+     */
+    private List<Map<String, Object>> convertMatchesToMap(List<DashboardDTO.MatchItemDTO> matches) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        for (DashboardDTO.MatchItemDTO match : matches) {
+            Map<String, Object> matchMap = new HashMap<>();
+            matchMap.put("id", match.getId());
+            matchMap.put("title", match.getTitle());
+            matchMap.put("description", match.getDescription());
+            matchMap.put("image", match.getImage());
+            matchMap.put("location", match.getLocation());
+            matchMap.put("score", match.getScore());
+            matchMap.put("type", match.getType());
+            matchMap.put("relatedItemId", match.getRelatedItemId());
+            result.add(matchMap);
+        }
+        
+        return result;
     }
     
     /**

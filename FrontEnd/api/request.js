@@ -55,8 +55,8 @@ export const request = (options) => {
           
           // 检查业务状态码
           if (response.code === 200) {
-            // 成功
-            resolve(response.data)
+            // 成功，返回完整的响应对象以保持兼容性
+            resolve(response)
           } else {
             // 业务错误
             console.error('业务错误:', response.message)

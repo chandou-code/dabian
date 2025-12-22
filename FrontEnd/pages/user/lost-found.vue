@@ -120,6 +120,10 @@
               <view class="item-status" :class="getStatusClass(item.status)">
                 {{ getStatusText(item.status) }}
               </view>
+              <!-- 图片数量标识 -->
+              <view v-if="item.imageCount > 1" class="image-count">
+                {{ item.imageCount }}+
+              </view>
             </view>
             
             <view class="item-content">
@@ -130,6 +134,7 @@
                 <text class="info-item">📍 {{ item.location }}</text>
                 <text class="info-item">📅 {{ item.time }}</text>
                 <text class="info-item">🏷️ {{ item.category }}</text>
+                <text class="info-item">👤 {{ item.userName || '匿名用户' }}</text>
               </view>
               
               <view class="item-footer">
@@ -327,21 +332,24 @@ export default {
       try {
         // 调用真实API获取失物和招领列表
         console.log('===== 开始加载物品数据 =====')
-        const [lostItems, foundItems] = await Promise.all([
+        const [lostItemsResponse, foundItemsResponse] = await Promise.all([
           api.getLostItems(),
           api.getFoundItems()
         ])
         
-        console.log('失物API返回数据:', lostItems)
-        console.log('招领API返回数据:', foundItems)
+        console.log('失物API返回数据:', lostItemsResponse)
+        console.log('招领API返回数据:', foundItemsResponse)
         
-        // 确保数据是对象格式
-        const lostItemsObj = typeof lostItems === 'object' && lostItems !== null ? lostItems : {}
-        const foundItemsObj = typeof foundItems === 'object' && foundItems !== null ? foundItems : {}
+        // 检查API响应结构
+        const lostItems = lostItemsResponse && lostItemsResponse.data ? lostItemsResponse.data : {}
+        const foundItems = foundItemsResponse && foundItemsResponse.data ? foundItemsResponse.data : {}
+        
+        console.log('失物数据:', lostItems)
+        console.log('招领数据:', foundItems)
         
         // 从API返回的对象中提取list字段
-        const lostItemsList = Array.isArray(lostItemsObj.list) ? lostItemsObj.list : []
-        const foundItemsList = Array.isArray(foundItemsObj.list) ? foundItemsObj.list : []
+        const lostItemsList = Array.isArray(lostItems.list) ? lostItems.list : (Array.isArray(lostItems) ? lostItems : [])
+        const foundItemsList = Array.isArray(foundItems.list) ? foundItems.list : (Array.isArray(foundItems) ? foundItems : [])
         
         console.log('失物列表:', lostItemsList)
         console.log('招领列表:', foundItemsList)
@@ -351,20 +359,24 @@ export default {
           // 确保item是对象
           const safeItem = typeof item === 'object' && item !== null ? item : {}
           
-          // 确定位置字段名
-          const locationField = safeItem.type === 'lost' ? 'lostLocation' : 'foundLocation'
+          // 确定物品类型和位置字段名
+          const itemType = safeItem.type || (safeItem.foundTime ? 'found' : 'lost')
+          const locationField = itemType === 'lost' ? 'lostLocation' : 'foundLocation'
           
+          const imagesArray = this.getImagesArray(safeItem.images)
           return {
             id: safeItem.id || '',
-            title: safeItem.itemName || (safeItem.type === 'lost' ? '未命名失物' : '未命名招领'),
+            title: safeItem.itemName || (itemType === 'lost' ? '未命名失物' : '未命名招领'),
             description: safeItem.description || '',
             category: safeItem.category || '其他物品',
-            location: safeItem[locationField] || '未知地点',
-            time: this.formatTime(safeItem.lostTime || safeItem.foundTime),
+            location: safeItem[locationField] || safeItem.location || '未知地点',
+            time: this.formatTime(safeItem.lostTime || safeItem.foundTime || safeItem.eventTime),
             publishTime: this.formatTime(safeItem.createdAt),
-            type: safeItem.type || 'lost',
+            type: itemType,
             status: safeItem.status || 'pending',
-            image: this.getFirstImage(safeItem.images)
+            image: this.getFirstImage(safeItem.images),
+            imageCount: imagesArray.length,
+            userName: safeItem.userName || safeItem.submitterName || '匿名用户'
           }
         })
         
@@ -500,16 +512,116 @@ export default {
       }
     },
     
-    getFirstImage(imagesJson) {
-      if (!imagesJson) return null
+    getImagesArray(imagesJson) {
+      if (!imagesJson) return []
       
-      try {
-        const images = JSON.parse(imagesJson)
-        return images.length > 0 ? images[0] : null
-      } catch (error) {
-        console.error('解析图片数据失败:', error)
-        return null
+      // 如果已经是数组，处理每个元素
+      if (Array.isArray(imagesJson)) {
+        return imagesJson.map(img => {
+          // 处理被双引号包裹的URL
+          if (typeof img === 'string') {
+            return this.cleanImageUrl(img)
+          }
+          return img
+        }).filter(img => img && typeof img === 'string' && img.startsWith('http'))
       }
+      
+      // 如果是字符串，尝试解析为JSON
+      if (typeof imagesJson === 'string') {
+        try {
+          // 先检查是否是有效的JSON字符串
+          const trimmed = imagesJson.trim()
+          if (!trimmed || trimmed === 'null' || trimmed === 'undefined') {
+            return []
+          }
+          
+          // 处理JSON数组字符串
+          let images = []
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            // 尝试解析为数组
+            images = JSON.parse(trimmed)
+            if (Array.isArray(images)) {
+              return images.map(img => this.cleanImageUrl(img))
+                .filter(img => img && typeof img === 'string' && img.startsWith('http'))
+            }
+          } else {
+            // 单个图片URL字符串
+            const cleanUrl = this.cleanImageUrl(trimmed)
+            return cleanUrl.startsWith('http') ? [cleanUrl] : []
+          }
+        } catch (error) {
+          console.error('解析图片数据失败:', error)
+          console.log('原始图片数据:', imagesJson)
+          
+          // 尝试直接处理字符串，可能是被双引号包裹的URL
+          const cleanUrl = this.cleanImageUrl(imagesJson)
+          return cleanUrl.startsWith('http') ? [cleanUrl] : []
+        }
+      }
+      
+      // 如果是对象，尝试转换为数组
+      if (typeof imagesJson === 'object' && imagesJson !== null) {
+        // 如果是FileUpload对象，尝试提取fileUrl
+        if (imagesJson.fileUrl) {
+          return [this.cleanImageUrl(imagesJson.fileUrl)]
+        }
+        
+        // 如果是包含imageUrls或urls的对象
+        if (imagesJson.imageUrls && Array.isArray(imagesJson.imageUrls)) {
+          return imagesJson.imageUrls.map(img => this.cleanImageUrl(img))
+            .filter(img => img && typeof img === 'string' && img.startsWith('http'))
+        }
+        
+        if (imagesJson.urls && Array.isArray(imagesJson.urls)) {
+          return imagesJson.urls.map(img => this.cleanImageUrl(img))
+            .filter(img => img && typeof img === 'string' && img.startsWith('http'))
+        }
+        
+        // 尝试将对象的值转换为数组
+        const values = Object.values(imagesJson)
+        return values
+          .map(img => {
+            if (typeof img === 'string') {
+              return this.cleanImageUrl(img)
+            }
+            return img
+          })
+          .filter(img => typeof img === 'string' && img.startsWith('http'))
+      }
+      
+      return []
+    },
+    
+    // 清理图片URL，移除多余的引号和处理特殊格式
+    cleanImageUrl(url) {
+      if (!url || typeof url !== 'string') return ''
+      
+      // 移除前后的引号（处理类似 "http://..." 的格式）
+      let cleaned = url.trim()
+      while (cleaned.startsWith('"') || cleaned.startsWith('\'') || cleaned.startsWith('`')) {
+        cleaned = cleaned.slice(1)
+      }
+      while (cleaned.endsWith('"') || cleaned.endsWith('\'') || cleaned.endsWith('`')) {
+        cleaned = cleaned.slice(0, -1)
+      }
+      
+      // 处理blob URL（前端临时URL，需要替换为实际上传的URL）
+      if (cleaned.startsWith('blob:')) {
+        console.warn('忽略blob URL，这是前端临时URL:', cleaned)
+        return ''
+      }
+      
+      // 处理相对路径，添加完整URL
+      if (cleaned.startsWith('/uploads/')) {
+        return `http://localhost:18080/api${cleaned}`
+      }
+      
+      return cleaned
+    },
+    
+    getFirstImage(imagesJson) {
+      const images = this.getImagesArray(imagesJson)
+      return images.length > 0 ? images[0] : '/static/default-item.jpg'
     }
   }
 }
@@ -796,6 +908,19 @@ export default {
 .status-pending { background: #ff9800; }
 .status-approved { background: #4caf50; }
 .status-found { background: #2196f3; }
+
+.image-count {
+  position: absolute;
+  top: 10rpx;
+  left: 10rpx;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4rpx 8rpx;
+  border-radius: 8rpx;
+  font-size: 20rpx;
+  min-width: 40rpx;
+  text-align: center;
+}
 
 .item-content {
   padding: 20rpx;

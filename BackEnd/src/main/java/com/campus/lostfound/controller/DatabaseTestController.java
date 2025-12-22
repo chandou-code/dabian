@@ -2,6 +2,10 @@ package com.campus.lostfound.controller;
 
 import com.campus.lostfound.common.Result;
 import com.campus.lostfound.entity.User;
+import com.campus.lostfound.mapper.ItemMapper;
+import com.campus.lostfound.mapper.MatchMapper;
+import com.campus.lostfound.mapper.NotificationMapper;
+import com.campus.lostfound.mapper.ReviewMapper;
 import com.campus.lostfound.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +25,18 @@ public class DatabaseTestController {
     
     @Autowired
     private UserMapper userMapper;
+    
+    @Autowired
+    private ItemMapper itemMapper;
+    
+    @Autowired
+    private MatchMapper matchMapper;
+    
+    @Autowired
+    private NotificationMapper notificationMapper;
+    
+    @Autowired
+    private ReviewMapper reviewMapper;
     
     @GetMapping("/db-connection")
     public Result<Map<String, Object>> testDatabaseConnection() {
@@ -71,11 +87,29 @@ public class DatabaseTestController {
         try {
             // 简单创建测试用户
             userMapper.insert(user);
+            
             user.setPassword(null);
             return Result.success("创建成功", user);
         } catch (Exception e) {
             log.error("创建用户失败", e);
             return Result.error("创建失败：" + e.getMessage());
+        }
+    }
+    
+    @PostMapping("/clear-lost-items")
+    public Result<String> clearLostItems() {
+        try {
+            log.info("开始清空失物数据");
+            
+            // 使用BaseMapper的delete方法直接删除失物数据
+            // MyBatis Plus会自动处理关联关系的级联删除（如果配置了的话）
+            int deletedCount = itemMapper.deleteByMap(Map.of("type", "lost"));
+            
+            log.info("成功清空 {} 条失物数据", deletedCount);
+            return Result.success("失物数据已成功清空，共删除 " + deletedCount + " 条记录");
+        } catch (Exception e) {
+            log.error("清空失物数据失败", e);
+            return Result.error("清空失物数据失败：" + e.getMessage());
         }
     }
 }

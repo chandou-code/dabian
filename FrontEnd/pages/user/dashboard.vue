@@ -7,10 +7,15 @@
       <!-- 顶部欢迎栏 -->
       <view class="welcome-section">
         <view class="welcome-content">
-          <text class="welcome-text">欢迎回来，{{ userInfo && userInfo.name ? userInfo.name : '用户' }}！</text>
+          <text class="welcome-text">
+            {{ loading ? '加载中...' : (userInfo && userInfo.name ? userInfo.name : '用户') }}！
+          </text>
           <text class="date-text">{{ currentDate }}</text>
         </view>
         <view class="user-actions">
+          <button class="refresh-btn" @click="loadUserData" :disabled="loading">
+            <text class="icon">{{ loading ? '⏳' : '🔄' }}</text>
+          </button>
           <button class="notification-btn" @click="showNotifications">
             <text class="icon">🔔</text>
             <text v-if="unreadCount > 0" class="badge">{{ unreadCount }}</text>
@@ -83,7 +88,7 @@
       <view class="recent-activities">
         <view class="section-header">
           <text class="section-title">最近活动</text>
-          <text class="view-more" @click="navigateTo('/pages/user/lost-found')">查看更多</text>
+          <text class="view-more" @click="viewMoreActivities">查看更多</text>
         </view>
         
         <view class="activity-list">
@@ -102,10 +107,10 @@
       </view>
       
       <!-- 推荐匹配 -->
-      <view class="recommended-matches" v-if="recommendedMatches.length > 0">
+      <view class="recommended-matches" v-if="recommendedMatches && recommendedMatches.length > 0">
         <view class="section-header">
           <text class="section-title">推荐匹配</text>
-          <text class="view-more" @click="navigateTo('/pages/user/search')">查看全部</text>
+          <text class="view-more" @click="viewMoreMatches">查看全部</text>
         </view>
         
         <view class="match-list">
@@ -140,50 +145,17 @@ export default {
   data() {
     return {
       showSidebar: true,
-      unreadCount: 3,
+      unreadCount: 0,
       currentDate: '',
+      loading: false,
       stats: {
-        totalLost: 5,
-        totalFound: 3,
-        recovered: 2,
-        pending: 1
+        totalLost: 0,
+        totalFound: 0,
+        recovered: 0,
+        pending: 0
       },
-      recentActivities: [
-        {
-          id: 1,
-          icon: '📝',
-          title: '发布了失物信息',
-          description: '黑色钱包，内有身份证和银行卡',
-          time: '2小时前',
-          status: 'pending'
-        },
-        {
-          id: 2,
-          icon: '💬',
-          title: '收到评论',
-          description: '有人在评论区提供了线索',
-          time: '5小时前',
-          status: 'approved'
-        },
-        {
-          id: 3,
-          icon: '🎉',
-          title: '物品已找回',
-          description: '您的蓝色水杯已被好心人找回',
-          time: '1天前',
-          status: 'recovered'
-        }
-      ],
-      recommendedMatches: [
-        {
-          id: 1,
-          title: '黑色钱包',
-          description: '在图书馆二楼发现黑色钱包',
-          image: '/static/wallet.jpg',
-          location: '图书馆二楼',
-          score: 95
-        }
-      ]
+      recentActivities: [],
+      recommendedMatches: []
     }
   },
   
@@ -199,8 +171,16 @@ export default {
     this.initDashboard()
   },
   
+  onShow() {
+    // 确保页面显示时数据正确
+    this.ensureDataInitialized()
+  },
+  
   methods: {
     initDashboard() {
+      // 确保数据初始化
+      this.ensureDataInitialized()
+      
       // 设置当前日期
       const now = new Date()
       const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }
@@ -210,13 +190,135 @@ export default {
       this.loadUserData()
     },
     
-    loadUserData() {
-      // 实际项目中这里会调用API获取用户数据
-      console.log('加载用户数据...')
+    async loadUserData() {
+      this.loading = true
+      try {
+        console.log('加载用户数据...')
+        
+        // 导入API
+        const { getDashboardData, getDashboardActivities, getDashboardMatches } = await import('@/api/stats')
+        
+        // 并行加载所有数据
+        const [dashboardResult, activitiesResult, matchesResult] = await Promise.all([
+          getDashboardData(),
+          getDashboardActivities(1, 10),
+          getDashboardMatches(1, 10)
+        ])
+        
+        // 处理仪表板数据
+        if (dashboardResult.success && dashboardResult.data) {
+          const dashboard = dashboardResult.data
+          
+          // 更新统计信息
+          if (dashboard.userStats) {
+            this.stats = {
+              totalLost: dashboard.userStats.totalLost || 0,
+              totalFound: dashboard.userStats.totalFound || 0,
+              recovered: dashboard.userStats.recovered || 0,
+              pending: dashboard.userStats.pending || 0
+            }
+            
+            // 更新未读通知数量
+            this.unreadCount = dashboard.userStats.unreadNotifications || 0
+          }
+          
+          // 更新最近活动
+          if (dashboard.recentActivities && dashboard.recentActivities.length > 0) {
+            this.recentActivities = dashboard.recentActivities.map(activity => ({
+              id: activity.id,
+              icon: activity.icon || '📝',
+              title: activity.title,
+              description: activity.description,
+              time: this.formatTime(activity.time),
+              status: activity.status,
+              type: activity.type
+            }))
+          }
+          
+          // 更新推荐匹配
+          if (dashboard.recommendedMatches && dashboard.recommendedMatches.length > 0) {
+            this.recommendedMatches = dashboard.recommendedMatches.map(match => ({
+              id: match.id,
+              title: match.title,
+              description: match.description,
+              image: match.image || '/static/logo.png',
+              location: match.location,
+              score: match.score,
+              type: match.type,
+              relatedItemId: match.relatedItemId
+            }))
+          }
+        }
+        
+        console.log('用户数据加载成功')
+      } catch (error) {
+        console.error('加载用户数据失败:', error)
+        // 确保在出错时使用默认数据
+        this.ensureDataInitialized()
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    // 格式化时间
+    formatTime(time) {
+      if (!time) return ''
+      
+      try {
+        const date = new Date(time)
+        const now = new Date()
+        const diff = now - date
+        
+        // 计算时间差
+        const minutes = Math.floor(diff / 60000)
+        const hours = Math.floor(diff / 3600000)
+        const days = Math.floor(diff / 86400000)
+        
+        if (minutes < 1) return '刚刚'
+        if (minutes < 60) return `${minutes}分钟前`
+        if (hours < 24) return `${hours}小时前`
+        if (days < 7) return `${days}天前`
+        
+        return date.toLocaleDateString('zh-CN')
+      } catch (e) {
+        return ''
+      }
+    },
+    
+    ensureDataInitialized() {
+      // 确保所有必要的数组都已初始化
+      if (!this.recommendedMatches) {
+        this.recommendedMatches = []
+      }
+      if (!this.recentActivities) {
+        this.recentActivities = []
+      }
+      if (!this.stats) {
+        this.stats = {
+          totalLost: 0,
+          totalFound: 0,
+          recovered: 0,
+          pending: 0
+        }
+      }
     },
     
     navigateTo(url) {
       uni.navigateTo({ url })
+    },
+    
+    // 查看更多活动
+    viewMoreActivities() {
+      uni.navigateTo({ 
+        url: '/pages/user/activities' 
+      })
+    },
+    
+    // 查看更多匹配
+    viewMoreMatches() {
+      uni.navigateTo({ 
+        url: '/pages/user/search' 
+      })
     },
     
     showNotifications() {
@@ -309,7 +411,7 @@ export default {
   opacity: 0.9;
 }
 
-.notification-btn {
+.notification-btn, .refresh-btn {
   position: relative;
   background: rgba(255, 255, 255, 0.2);
   border: none;
@@ -320,6 +422,11 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-left: 20rpx;
+}
+
+.refresh-btn:disabled {
+  opacity: 0.6;
 }
 
 .badge {

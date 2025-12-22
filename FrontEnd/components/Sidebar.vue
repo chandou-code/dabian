@@ -73,7 +73,7 @@ export default {
     },
     
     userAvatar() {
-      return this.userInfo && this.userInfo.avatar ? this.userInfo.avatar : '/static/default-avatar.png'
+      return this.userInfo && this.userInfo.avatar ? this.userInfo.avatar : '/static/logo.png'
     },
     
     roleText() {

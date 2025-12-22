@@ -2,6 +2,8 @@ package com.campus.lostfound.service.impl;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.campus.lostfound.entity.FileUpload;
+import com.campus.lostfound.mapper.FileUploadMapper;
 import com.campus.lostfound.service.FileUploadService;
 import com.campus.lostfound.service.SystemConfigService;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,9 @@ public class FileUploadServiceImpl implements FileUploadService {
     
     @Autowired
     private SystemConfigService systemConfigService;
+    
+    @Autowired
+    private FileUploadMapper fileUploadMapper;
     
     @Value("${app.upload.path:/uploads/}")
     private String uploadPath;
@@ -59,18 +64,33 @@ public class FileUploadServiceImpl implements FileUploadService {
             // 创建目录
             String dateFolder = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
             String targetFolder = uploadPath + (StrUtil.isNotBlank(folder) ? folder + "/" : "") + dateFolder;
+            
+            // 处理相对路径，转换为绝对路径
             File directory = new File(targetFolder);
+            if (!directory.isAbsolute()) {
+                // 如果是相对路径，基于应用工作目录创建
+                String workingDir = System.getProperty("user.dir");
+                directory = new File(workingDir, targetFolder);
+            }
+            
             if (!directory.exists()) {
-                directory.mkdirs();
+                // 使用mkdirs()创建多级目录，确保所有父目录都被创建
+                boolean created = directory.mkdirs();
+                if (!created) {
+                    log.warn("目录创建失败：{}", directory.getAbsolutePath());
+                }
             }
             
             // 生成文件名
             String originalFilename = file.getOriginalFilename();
             String fileName = generateFileName(originalFilename);
-            String filePath = targetFolder + "/" + fileName;
+            
+            // 使用绝对路径保存文件
+            File targetFile = new File(directory, fileName);
+            String absoluteFilePath = targetFile.getAbsolutePath();
             
             // 保存文件
-            file.transferTo(new File(filePath));
+            file.transferTo(targetFile);
             
             // 返回相对路径
             String relativePath = (StrUtil.isNotBlank(folder) ? folder + "/" : "") + dateFolder + "/" + fileName;
@@ -123,11 +143,17 @@ public class FileUploadServiceImpl implements FileUploadService {
             String filePath = uploadPath + fileUrl;
             File file = new File(filePath);
             
+            // 处理相对路径
+            if (!file.isAbsolute()) {
+                String workingDir = System.getProperty("user.dir");
+                file = new File(workingDir, filePath);
+            }
+            
             if (file.exists() && file.delete()) {
-                log.info("文件删除成功：{}", fileUrl);
+                log.info("文件删除成功：{}，绝对路径：{}", fileUrl, file.getAbsolutePath());
                 return true;
             } else {
-                log.warn("文件删除失败或文件不存在：{}", fileUrl);
+                log.warn("文件删除失败或文件不存在：{}，绝对路径：{}", fileUrl, file.getAbsolutePath());
                 return false;
             }
         } catch (Exception e) {
@@ -190,6 +216,30 @@ public class FileUploadServiceImpl implements FileUploadService {
             return Integer.parseInt(maxCountStr);
         } catch (NumberFormatException e) {
             return 6;
+        }
+    }
+    
+    @Override
+    public List<FileUpload> getUploadsByFileUrl(String fileUrl) {
+        try {
+            return fileUploadMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<FileUpload>()
+                    .eq("file_url", fileUrl)
+            );
+        } catch (Exception e) {
+            log.error("根据文件URL查找上传记录失败: fileUrl={}", fileUrl, e);
+            return new ArrayList<>();
+        }
+    }
+    
+    @Override
+    public boolean updateUpload(FileUpload upload) {
+        try {
+            int result = fileUploadMapper.updateById(upload);
+            return result > 0;
+        } catch (Exception e) {
+            log.error("更新上传记录失败: uploadId={}", upload.getId(), e);
+            return false;
         }
     }
 }

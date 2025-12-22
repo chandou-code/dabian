@@ -152,6 +152,7 @@
 <script>
 import Sidebar from '@/components/Sidebar.vue'
 import * as api from '@/api'
+import { uploadItemImages, getItemImages } from '@/api/upload'
 
 export default {
   name: 'PublishFound',
@@ -177,6 +178,8 @@ export default {
         pickupLocation: '',
         images: []
       },
+      uploadedImages: [], // 存储已上传的图片信息
+      itemId: null, // 发布成功后的物品ID
       errors: {},
       isSubmitting: false
     }
@@ -192,15 +195,53 @@ export default {
       this.form.foundTime = e.detail.value
     },
     
-    chooseImage() {
+    async chooseImage() {
+      const maxCount = 6 - this.form.images.length
+      
       uni.chooseImage({
-        count: 4 - this.form.images.length,
+        count: maxCount,
         sizeType: ['compressed'],
         sourceType: ['album', 'camera'],
-        success: (res) => {
-          this.form.images.push(...res.tempFilePaths)
+        success: async (res) => {
+          try {
+            uni.showLoading({
+              title: '上传中...'
+            })
+            
+            // 上传图片到服务器
+            const files = res.tempFilePaths.map((tempPath, index) => {
+              return {
+                path: tempPath
+              }
+            })
+            
+            const uploadResult = await uploadItemImages(files, 'found', this.itemId)
+            
+            if (uploadResult && uploadResult.data) {
+              // 添加到表单图片数组
+              const newImages = uploadResult.data.map(img => img.url)
+              this.form.images.push(...newImages)
+              
+              // 添加到已上传图片信息
+              this.uploadedImages.push(...uploadResult.data)
+              
+              uni.showToast({
+                title: '图片上传成功',
+                icon: 'success'
+              })
+            }
+          } catch (error) {
+            console.error('图片上传失败:', error)
+            uni.showToast({
+              title: '图片上传失败',
+              icon: 'none'
+            })
+          } finally {
+            uni.hideLoading()
+          }
         },
         fail: (err) => {
+          console.error('选择图片失败:', err)
           uni.showToast({
             title: '选择图片失败',
             icon: 'none'
@@ -210,7 +251,11 @@ export default {
     },
     
     deleteImage(index) {
+      // 从表单中删除
       this.form.images.splice(index, 1)
+      
+      // 从已上传图片信息中删除
+      this.uploadedImages.splice(index, 1)
     },
     
     validateForm() {
@@ -264,8 +309,31 @@ export default {
       this.isSubmitting = true
       
       try {
+        // 准备表单数据
+        const formData = { ...this.form }
+        formData.images = JSON.stringify(this.form.images)
+        formData.type = 'found' // 明确设置类型为招领
+        
         // 调用真实API发布招领信息
-        await api.publishFoundItem(this.form)
+        const response = await api.publishFoundItem(formData)
+        
+        // 如果有图片，将图片与物品ID关联
+        if (response && response.data && this.form.images.length > 0) {
+          this.itemId = response.data.id
+          
+          try {
+            // 更新数据库中的图片关联关系
+            await api.updateItemImageAssociation({
+              itemId: this.itemId,
+              itemType: 'found',
+              imageUrls: this.form.images
+            })
+            console.log('图片与物品关联成功')
+          } catch (imageError) {
+            console.error('图片关联失败:', imageError)
+            // 不影响主流程，但记录错误
+          }
+        }
         
         uni.showToast({
           title: '发布成功',

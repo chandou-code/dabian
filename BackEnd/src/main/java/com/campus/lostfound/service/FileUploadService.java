@@ -1,5 +1,6 @@
 package com.campus.lostfound.service;
 
+import com.campus.lostfound.entity.FileUpload;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -38,4 +39,14 @@ public interface FileUploadService {
      * 生成文件名
      */
     String generateFileName(String originalFilename);
+    
+    /**
+     * 根据文件URL查找上传记录
+     */
+    List<FileUpload> getUploadsByFileUrl(String fileUrl);
+    
+    /**
+     * 更新上传记录
+     */
+    boolean updateUpload(FileUpload upload);
 }
