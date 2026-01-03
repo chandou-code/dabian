@@ -1,6 +1,7 @@
 <template>
   <view class="dashboard-container">
     <Sidebar />
+    <AnnouncementPopup />
     
     <!-- 主内容区域 -->
     <view class="main-content" :class="{ 'main-content-expanded': !showSidebar }">
@@ -14,10 +15,10 @@
         </view>
         <view class="user-actions">
           <button class="refresh-btn" @click="loadUserData" :disabled="loading">
-            <text class="icon">{{ loading ? '⏳' : '🔄' }}</text>
+            <text class="icon">{{ loading ? '加载中' : '刷新' }}</text>
           </button>
           <button class="notification-btn" @click="showNotifications">
-            <text class="icon">🔔</text>
+            <text class="icon">通知</text>
             <text v-if="unreadCount > 0" class="badge">{{ unreadCount }}</text>
           </button>
         </view>
@@ -26,7 +27,7 @@
       <!-- 快速统计 -->
       <view class="stats-grid">
         <view class="stat-card">
-          <view class="stat-icon lost-icon">🔍</view>
+          <view class="stat-icon lost-icon">失</view>
           <view class="stat-content">
             <text class="stat-number">{{ stats.totalLost }}</text>
             <text class="stat-label">我发布的失物</text>
@@ -34,7 +35,7 @@
         </view>
         
         <view class="stat-card">
-          <view class="stat-icon found-icon">✅</view>
+          <view class="stat-icon found-icon">招</view>
           <view class="stat-content">
             <text class="stat-number">{{ stats.totalFound }}</text>
             <text class="stat-label">我发布的招领</text>
@@ -42,7 +43,7 @@
         </view>
         
         <view class="stat-card">
-          <view class="stat-icon recovered-icon">🎉</view>
+          <view class="stat-icon recovered-icon">回</view>
           <view class="stat-content">
             <text class="stat-number">{{ stats.recovered }}</text>
             <text class="stat-label">已找回物品</text>
@@ -50,7 +51,7 @@
         </view>
         
         <view class="stat-card">
-          <view class="stat-icon pending-icon">⏳</view>
+          <view class="stat-icon pending-icon">待</view>
           <view class="stat-content">
             <text class="stat-number">{{ stats.pending }}</text>
             <text class="stat-label">待处理信息</text>
@@ -63,22 +64,22 @@
         <text class="section-title">快速操作</text>
         <view class="action-grid">
           <view class="action-item" @click="navigateTo('/pages/user/publish-lost')">
-            <view class="action-icon lost-action">📝</view>
+            <view class="action-icon lost-action">发布</view>
             <text class="action-text">发布失物</text>
           </view>
           
           <view class="action-item" @click="navigateTo('/pages/user/publish-found')">
-            <view class="action-icon found-action">✅</view>
+            <view class="action-icon found-action">招领</view>
             <text class="action-text">发布招领</text>
           </view>
           
           <view class="action-item" @click="navigateTo('/pages/user/search')">
-            <view class="action-icon search-action">🎯</view>
+            <view class="action-icon search-action">搜索</view>
             <text class="action-text">智能搜索</text>
           </view>
           
           <view class="action-item" @click="navigateTo('/pages/user/lost-found')">
-            <view class="action-icon list-action">📋</view>
+            <view class="action-icon list-action">列表</view>
             <text class="action-text">浏览信息</text>
           </view>
         </view>
@@ -99,7 +100,8 @@
               <text class="activity-desc">{{ activity.description }}</text>
               <text class="activity-time">{{ activity.time }}</text>
             </view>
-            <view class="activity-status" :class="getStatusClass(activity.status)">
+            <!-- 线索类型的活动不显示状态，其他类型显示 -->
+            <view v-if="activity.type !== 'clue'" class="activity-status" :class="getStatusClass(activity.status)">
               {{ getStatusText(activity.status) }}
             </view>
           </view>
@@ -119,7 +121,7 @@
             <view class="match-content">
               <text class="match-title">{{ match.title }}</text>
               <text class="match-desc">{{ match.description }}</text>
-              <text class="match-location">📍 {{ match.location }}</text>
+              <text class="match-location">地点: {{ match.location }}</text>
             </view>
             <view class="match-action">
               <text class="match-score">匹配度 {{ match.score }}%</text>
@@ -134,12 +136,14 @@
 
 <script>
 import Sidebar from '@/components/Sidebar.vue'
+import AnnouncementPopup from '@/components/AnnouncementPopup.vue'
 import { mapGetters } from 'vuex'
 
 export default {
   name: 'UserDashboard',
   components: {
-    Sidebar
+    Sidebar,
+    AnnouncementPopup
   },
   
   data() {
@@ -226,7 +230,7 @@ export default {
           if (dashboard.recentActivities && dashboard.recentActivities.length > 0) {
             this.recentActivities = dashboard.recentActivities.map(activity => ({
               id: activity.id,
-              icon: activity.icon || '📝',
+              icon: activity.icon || '活动',
               title: activity.title,
               description: activity.description,
               time: this.formatTime(activity.time),
@@ -334,7 +338,10 @@ export default {
         pending: 'status-pending',
         approved: 'status-approved',
         rejected: 'status-rejected',
-        recovered: 'status-success'
+        recovered: 'status-success',
+        clue: 'status-clue',
+        useful: 'status-useful',
+        invalid: 'status-invalid'
       }
       return classMap[status] || 'status-pending'
     },
@@ -344,7 +351,10 @@ export default {
         pending: '待审核',
         approved: '已通过',
         rejected: '已驳回',
-        recovered: '已找回'
+        recovered: '已找回',
+        clue: '新线索',
+        useful: '有用线索',
+        invalid: '无效线索'
       }
       return textMap[status] || '待审核'
     },
@@ -528,13 +538,14 @@ export default {
 }
 
 .action-icon {
-  width: 60rpx;
-  height: 60rpx;
+  width: 80rpx;
+  height: 80rpx;
   border-radius: 12rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32rpx;
+  font-size: 24rpx;
+  color: #333;
 }
 
 .lost-action { background: #ffebee; }
@@ -623,6 +634,21 @@ export default {
   border-radius: 8rpx;
 }
 
+.status-clue {
+  background: #fff8e1;
+  color: #ff9800;
+}
+
+.status-useful {
+  background: #e8f5e8;
+  color: #4caf50;
+}
+
+.status-invalid {
+  background: #ffebee;
+  color: #f44336;
+}
+
 /* 推荐匹配 */
 .recommended-matches {
   background: white;
@@ -705,7 +731,7 @@ export default {
     padding: 20rpx;
   }
   
-  .stats-grid {
+  炎孕.stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
   

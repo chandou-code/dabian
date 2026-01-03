@@ -6,7 +6,7 @@ server:
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/campus_lost_found?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/campus_lost_found?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true&connectionCollation=utf8mb4_unicode_ci
     username: root
     password: 123456
   
@@ -42,6 +42,11 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: AUTO
+      logic-delete-field: del_flag
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      table-underline: true
+    enable-sql-runner: true
 
 
 
@@ -72,3 +77,9 @@ logging:
     org.springframework.security: debug
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+
+# AI API配置
+ai:
+  api:
+    key: sk-xnscttiarytendwlcahuumvpqtvqpibbkipejzcfxjsmjuwa
+    url: https://api.siliconflow.cn/v1/chat/completions

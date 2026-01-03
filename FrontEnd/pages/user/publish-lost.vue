@@ -285,21 +285,73 @@ export default {
       this.isAiProcessing = true
       
       try {
-        // 模拟AI识别
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        this.aiResult = `根据图片分析，这可能是一个${this.form.itemName || '物品'}，主要特征包括：外观颜色、材质特点和尺寸大小。建议在描述中补充更多细节信息，如品牌型号、特殊标记等，以便更好识别。`
-        
-        uni.showToast({
-          title: 'AI识别完成',
-          icon: 'success'
+        // 使用uni.uploadFile API上传图片到AI识别接口
+        uni.uploadFile({
+          url: 'http://localhost:18080/api/image/generate-description',
+          filePath: this.form.images[0], // 使用第一张图片的本地临时路径
+          name: 'file',
+          timeout: 30000,
+          success: (uploadRes) => {
+            try {
+              // 解析响应数据
+              const responseData = JSON.parse(uploadRes.data)
+              
+              if (responseData.success) {
+                const itemInfo = responseData.data
+                
+                // 直接应用AI识别结果到表单
+                if (itemInfo.item) {
+                  this.form.itemName = itemInfo.item
+                }
+                
+                if (itemInfo.category) {
+                  // 查找类别索引并设置
+                  const categoryIndex = this.categories.indexOf(itemInfo.category)
+                  if (categoryIndex !== -1) {
+                    this.categoryIndex = categoryIndex
+                    this.form.category = itemInfo.category
+                  }
+                }
+                
+                if (itemInfo.detail) {
+                  this.form.description = itemInfo.detail
+                }
+                
+                uni.showToast({
+                  title: 'AI识别成功，已自动填充信息',
+                  icon: 'success'
+                })
+              } else {
+                uni.showToast({
+                  title: 'AI识别失败：' + (responseData.msg || '未知错误'),
+                  icon: 'none'
+                })
+              }
+            } catch (parseError) {
+              console.error('解析AI响应失败:', parseError)
+              uni.showToast({
+                title: 'AI识别失败：响应格式错误',
+                icon: 'none'
+              })
+            }
+          },
+          fail: (error) => {
+            console.error('AI识别请求失败:', error)
+            uni.showToast({
+              title: 'AI识别失败：网络或服务器错误',
+              icon: 'none'
+            })
+          },
+          complete: () => {
+            this.isAiProcessing = false
+          }
         })
       } catch (error) {
+        console.error('AI识别失败:', error)
         uni.showToast({
-          title: 'AI识别失败',
+          title: 'AI识别失败：系统错误',
           icon: 'none'
         })
-      } finally {
         this.isAiProcessing = false
       }
     },

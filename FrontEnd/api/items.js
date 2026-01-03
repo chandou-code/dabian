@@ -23,7 +23,7 @@ export const getFoundItems = (params) => {
 
 // 搜索物品
 export const searchItems = (params) => {
-  return get('/items/search', params)
+  return get('/search/text', params)
 }
 
 // 获取失物详情

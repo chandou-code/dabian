@@ -2,6 +2,7 @@ package com.campus.lostfound.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.campus.lostfound.dto.ItemDetailDTO;
 import com.campus.lostfound.entity.Item;
 
 import java.util.List;
@@ -32,6 +33,11 @@ public interface ItemService extends IService<Item> {
      * 获取物品详情
      */
     Item getItemDetail(Long itemId);
+    
+    /**
+     * 获取物品详情（包含用户信息）
+     */
+    ItemDetailDTO getItemDetailWithUser(Long itemId);
     
     /**
      * 搜索物品
@@ -144,4 +150,14 @@ public interface ItemService extends IService<Item> {
      * 获取类别统计
      */
     List<Map<String, Object>> getCategoryStatistics();
+    
+    /**
+     * 获取最新失物
+     */
+    List<Map<String, Object>> getRecentLostItems(Integer limit);
+    
+    /**
+     * 获取最新招领
+     */
+    List<Map<String, Object>> getRecentFoundItems(Integer limit);
 }

@@ -21,13 +21,15 @@
 		{
 			"path": "pages/user/dashboard",
 			"style": {
-				"navigationBarTitleText": "用户中心"
+				"navigationBarTitleText": "用户中心",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/user/lost-found",
 			"style": {
-				"navigationBarTitleText": "失物招领"
+				"navigationBarTitleText": "失物招领",
+				"navigationStyle": "custom"
 			}
 		},
 		{
@@ -51,61 +53,77 @@
 		{
 			"path": "pages/user/profile",
 			"style": {
-				"navigationBarTitleText": "个人信息"
+				"navigationBarTitleText": "个人信息",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/admin/dashboard",
 			"style": {
-				"navigationBarTitleText": "管理员控制台"
+				"navigationBarTitleText": "管理员控制台",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/admin/user-management",
 			"style": {
-				"navigationBarTitleText": "用户管理"
+				"navigationBarTitleText": "用户管理",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/admin/reviewer-management",
 			"style": {
-				"navigationBarTitleText": "审核员管理"
+				"navigationBarTitleText": "审核员管理",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/admin/statistics",
 			"style": {
-				"navigationBarTitleText": "数据统计"
+				"navigationBarTitleText": "数据统计",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/admin/system-settings",
 			"style": {
-				"navigationBarTitleText": "系统设置"
+				"navigationBarTitleText": "系统设置",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/reviewer/dashboard",
 			"style": {
-				"navigationBarTitleText": "审核员工作台"
+				"navigationBarTitleText": "审核员工作台",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/reviewer/review-lost",
 			"style": {
-				"navigationBarTitleText": "失物审核"
+				"navigationBarTitleText": "失物审核",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/reviewer/review-found",
 			"style": {
-				"navigationBarTitleText": "招领审核"
+				"navigationBarTitleText": "招领审核",
+				"navigationStyle": "custom"
 			}
 		},
 		{
 			"path": "pages/reviewer/statistics",
 			"style": {
 				"navigationBarTitleText": "审核统计"
+			}
+		},
+		{
+			"path": "pages/user/item-detail",
+			"style": {
+				"navigationBarTitleText": "物品详情",
+				"enablePullDownRefresh": true
 			}
 		}
 	],
@@ -114,37 +132,5 @@
 		"navigationBarTitleText": "校园失物招领",
 		"navigationBarBackgroundColor": "#FFFFFF",
 		"backgroundColor": "#F5F5F5"
-	},
-	"tabBar": {
-		"color": "#7A7E83",
-		"selectedColor": "#007AFF",
-		"borderStyle": "black",
-		"backgroundColor": "#FFFFFF",
-		"list": [
-			{
-				"pagePath": "pages/index/index",
-				"iconPath": "static/tab-home.png",
-				"selectedIconPath": "static/tab-home-active.png",
-				"text": "首页"
-			},
-			{
-				"pagePath": "pages/user/lost-found",
-				"iconPath": "static/tab-search.png",
-				"selectedIconPath": "static/tab-search-active.png",
-				"text": "失物招领"
-			},
-			{
-				"pagePath": "pages/user/publish-lost",
-				"iconPath": "static/tab-publish.png",
-				"selectedIconPath": "static/tab-publish-active.png",
-				"text": "发布"
-			},
-			{
-				"pagePath": "pages/user/profile",
-				"iconPath": "static/tab-profile.png",
-				"selectedIconPath": "static/tab-profile-active.png",
-				"text": "我的"
-			}
-		]
 	}
 }

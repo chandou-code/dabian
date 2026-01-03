@@ -1,17 +1,21 @@
 package com.campus.lostfound.service.impl;
 
 import com.campus.lostfound.dto.DashboardDTO;
+import com.campus.lostfound.entity.Clue;
 import com.campus.lostfound.entity.Item;
+import com.campus.lostfound.mapper.ClueMapper;
 import com.campus.lostfound.mapper.ItemMapper;
 import com.campus.lostfound.service.ActivityService;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 活动服务实现类
@@ -23,6 +27,9 @@ public class ActivityServiceImpl implements ActivityService {
     @Autowired
     private ItemMapper itemMapper;
     
+    @Autowired
+    private ClueMapper clueMapper;
+    
     @Override
     public List<DashboardDTO.ActivityDTO> getUserRecentActivities(Long userId, Integer limit) {
         return getUserRecentActivities(userId, 1, limit);
@@ -33,13 +40,34 @@ public class ActivityServiceImpl implements ActivityService {
         List<DashboardDTO.ActivityDTO> activities = new ArrayList<>();
         
         try {
-            // 获取用户最近的物品记录
-            int offset = (page - 1) * size;
+            // 1. 获取用户最近的物品记录（状态变更）
             List<Item> recentItems = itemMapper.selectUserRecentActivities(userId, size);
             
             for (Item item : recentItems) {
                 DashboardDTO.ActivityDTO activity = convertItemToActivity(item);
                 activities.add(activity);
+            }
+            
+            // 2. 获取用户收到的线索
+            List<Clue> receivedClues = getReceivedCluesByUserId(userId, size);
+            
+            for (Clue clue : receivedClues) {
+                DashboardDTO.ActivityDTO activity = convertClueToActivity(clue);
+                activities.add(activity);
+            }
+            
+            // 3. 合并并按时间倒序排序
+            activities = activities.stream()
+                .sorted(Comparator.comparing(DashboardDTO.ActivityDTO::getTime).reversed())
+                .collect(Collectors.toList());
+            
+            // 4. 分页处理
+            int offset = (page - 1) * size;
+            int end = Math.min(offset + size, activities.size());
+            if (offset < activities.size()) {
+                activities = activities.subList(offset, end);
+            } else {
+                activities = new ArrayList<>();
             }
             
             log.info("获取用户{}最近活动成功，共{}条记录", userId, activities.size());
@@ -49,6 +77,48 @@ public class ActivityServiceImpl implements ActivityService {
         }
         
         return activities;
+    }
+    
+    /**
+     * 获取用户收到的线索
+     */
+    private List<Clue> getReceivedCluesByUserId(Long userId, Integer size) {
+        // 首先获取用户发布的所有物品ID
+        List<Item> userItems = itemMapper.selectUserItems(userId);
+        List<Long> itemIds = userItems.stream()
+            .map(Item::getId)
+            .collect(Collectors.toList());
+        
+        if (itemIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        // 根据物品ID查询相关线索
+        QueryWrapper<Clue> queryWrapper = new QueryWrapper<>();
+        queryWrapper.in("item_id", itemIds)
+            .orderByDesc("created_at")
+            .last("LIMIT " + size);
+        
+        return clueMapper.selectList(queryWrapper);
+    }
+    
+    /**
+     * 将线索转换为活动记录
+     */
+    private DashboardDTO.ActivityDTO convertClueToActivity(Clue clue) {
+        DashboardDTO.ActivityDTO activity = new DashboardDTO.ActivityDTO();
+        activity.setId(clue.getId());
+        activity.setRelatedItemId(clue.getItemId());
+        activity.setTime(clue.getCreatedAt());
+        
+        // 设置活动信息
+        activity.setType("clue");
+        activity.setTitle("收到新线索");
+        activity.setIcon("💬");
+        activity.setDescription("有人为您的物品提供了线索：" + clue.getContent());
+        activity.setStatus(clue.getStatus());
+        
+        return activity;
     }
     
     @Override
@@ -86,34 +156,37 @@ public class ActivityServiceImpl implements ActivityService {
         // 根据物品类型和状态设置活动信息
         if ("lost".equals(item.getType())) {
             activity.setType("publish");
-            activity.setTitle("发布了失物信息");
             activity.setIcon("📝");
         } else if ("found".equals(item.getType())) {
             activity.setType("publish");
-            activity.setTitle("发布了招领信息");
             activity.setIcon("✅");
         }
         
         activity.setDescription(item.getItemName() + " - " + item.getLocation());
         
-        // 设置状态
+        // 设置状态和标题
         switch (item.getStatus()) {
             case "pending":
                 activity.setStatus("pending");
+                activity.setTitle("发布了失物信息");
                 break;
             case "approved":
                 activity.setStatus("approved");
+                activity.setTitle("发布了失物信息");
                 break;
             case "rejected":
                 activity.setStatus("rejected");
+                activity.setTitle("物品信息已被拒绝");
+                activity.setIcon("❌");
                 break;
             case "claimed":
                 activity.setStatus("recovered");
-                activity.setIcon("🎉");
                 activity.setTitle("物品已找回");
+                activity.setIcon("🎉");
                 break;
             default:
                 activity.setStatus("pending");
+                activity.setTitle("发布了失物信息");
         }
         
         return activity;

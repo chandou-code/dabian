@@ -6,7 +6,6 @@
       <!-- 顶部统计 -->
       <view class="stats-header">
         <view class="stat-card pending">
-          <view class="stat-icon">⏳</view>
           <view class="stat-content">
             <text class="stat-number">{{ reviewStats.pending }}</text>
             <text class="stat-label">待审核</text>
@@ -14,7 +13,6 @@
         </view>
         
         <view class="stat-card approved">
-          <view class="stat-icon">✅</view>
           <view class="stat-content">
             <text class="stat-number">{{ reviewStats.approved }}</text>
             <text class="stat-label">已通过</text>
@@ -22,7 +20,6 @@
         </view>
         
         <view class="stat-card rejected">
-          <view class="stat-icon">❌</view>
           <view class="stat-content">
             <text class="stat-number">{{ reviewStats.rejected }}</text>
             <text class="stat-label">已驳回</text>
@@ -30,7 +27,6 @@
         </view>
         
         <view class="stat-card efficiency">
-          <view class="stat-icon">📈</view>
           <view class="stat-content">
             <text class="stat-number">{{ reviewStats.efficiency }}%</text>
             <text class="stat-label">通过率</text>
@@ -62,7 +58,6 @@
           </view>
           
           <view v-else-if="currentReviews.length === 0" class="empty-state">
-            <text class="empty-icon">📋</text>
             <text class="empty-text">暂无待审核信息</text>
           </view>
           
@@ -78,7 +73,7 @@
               
               <view class="item-content">
                 <view class="item-header">
-                  <text class="item-title">{{ item.title }}</text>
+                  <text class="item-title">{{ item.itemName }}</text>
                   <view class="item-type" :class="item.type">
                     {{ item.type === 'lost' ? '失物' : '招领' }}
                   </view>
@@ -87,17 +82,17 @@
                 <text class="item-desc">{{ item.description }}</text>
                 
                 <view class="item-meta">
-                  <text class="meta-item">📍 {{ item.location }}</text>
-                  <text class="meta-item">📅 {{ item.time }}</text>
-                  <text class="meta-item">👤 {{ item.submitter }}</text>
+                  <text class="meta-item">{{ item.location }}</text>
+                  <text class="meta-item">{{ item.time }}</text>
+                  <text class="meta-item">{{ item.submitter }}</text>
                 </view>
               </view>
               
               <view class="review-actions">
-                <button class="action-btn approve" @click="handleApprove(item)">
+                <button v-if="item.status === 'pending'" class="action-btn approve" @click="handleApprove(item)">
                   通过
                 </button>
-                <button class="action-btn reject" @click="handleReject(item)">
+                <button v-if="item.status === 'pending'" class="action-btn reject" @click="handleReject(item)">
                   驳回
                 </button>
                 <button class="action-btn detail" @click="viewDetail(item)">
@@ -120,37 +115,9 @@
           </view>
           
           <view class="stat-item">
-            <text class="stat-label">平均处理时间</text>
-            <text class="stat-value">{{ todayStats.avgTime }}分钟</text>
-          </view>
-          
-          <view class="stat-item">
             <text class="stat-label">本周审核量</text>
             <text class="stat-value">{{ todayStats.weeklyReviewed }}</text>
           </view>
-          
-          <view class="stat-item">
-            <text class="stat-label">审核准确率</text>
-            <text class="stat-value">{{ todayStats.accuracy }}%</text>
-          </view>
-        </view>
-      </view>
-      
-      <!-- 快速操作 -->
-      <view class="quick-actions">
-        <view class="action-item" @click="navigateTo('/pages/reviewer/review-lost')">
-          <view class="action-icon lost-icon">🔍</view>
-          <text class="action-text">失物审核</text>
-        </view>
-        
-        <view class="action-item" @click="navigateTo('/pages/reviewer/review-found')">
-          <view class="action-icon found-icon">✅</view>
-          <text class="action-text">招领审核</text>
-        </view>
-        
-        <view class="action-item" @click="navigateTo('/pages/reviewer/statistics')">
-          <view class="action-icon stats-icon">📊</view>
-          <text class="action-text">审核统计</text>
         </view>
       </view>
     </view>
@@ -159,6 +126,7 @@
 
 <script>
 import Sidebar from '@/components/Sidebar.vue'
+import { getReviewerDashboard, getPendingReviews, reviewItem } from '@/api/review'
 
 export default {
   name: 'ReviewerDashboard',
@@ -220,46 +188,44 @@ export default {
       this.loading = true
       
       try {
-        // 模拟API请求
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // 并行请求获取仪表板数据和待审核列表
+        const [dashboardResponse, reviewsResponse] = await Promise.all([
+          getReviewerDashboard(),
+          getPendingReviews({ current: 1, pageSize: 20 })
+        ])
         
-        this.reviews = this.generateMockReviews()
+        // 更新仪表板统计数据
+        const stats = dashboardResponse.data
+        this.reviewStats = {
+          pending: stats.pending || 0,
+          approved: stats.approved || 0,
+          rejected: stats.rejected || 0,
+          efficiency: stats.efficiency || 0
+        }
+        
+        this.todayStats = {
+          todayReviewed: stats.todayReviewed || 0,
+          avgTime: stats.avgTime || 0,
+          weeklyReviewed: stats.weeklyReviewed || 0,
+          accuracy: stats.accuracy || 0
+        }
+        
+        // 更新待审核列表
+        this.reviews = (reviewsResponse.data.items || []).map(item => ({
+          ...item,
+          status: item.status || 'pending',
+          time: this.formatTime(item.createdAt)
+        }))
         this.updateTabCounts()
         
       } catch (error) {
         uni.showToast({
-          title: '加载失败',
+          title: '加载失败: ' + (error.message || '未知错误'),
           icon: 'none'
         })
       } finally {
         this.loading = false
       }
-    },
-    
-    generateMockReviews() {
-      const mockData = []
-      const types = ['lost', 'found']
-      const statuses = ['pending', 'approved', 'rejected']
-      const submitterNames = ['张三', '李四', '王五', '赵六', '钱七']
-      
-      for (let i = 1; i <= 20; i++) {
-        const type = types[Math.floor(Math.random() * types.length)]
-        const status = statuses[Math.floor(Math.random() * statuses.length)]
-        
-        mockData.push({
-          id: i,
-          title: `${type === 'lost' ? '丢失的' : '捡到的'}物品 ${i}`,
-          description: '这是一份详细描述，包含了物品的各种特征信息，需要仔细审核...',
-          location: `教学楼A${Math.floor(Math.random() * 5) + 1}楼`,
-          time: `${Math.floor(Math.random() * 24)}小时前`,
-          type,
-          status,
-          submitter: submitterNames[Math.floor(Math.random() * submitterNames.length)],
-          image: '/static/review-item.jpg'
-        })
-      }
-      
-      return mockData
     },
     
     updateTabCounts() {
@@ -269,6 +235,20 @@ export default {
       this.reviewTabs[3].count = this.reviews.filter(item => item.status === 'pending').length
     },
     
+    formatTime(dateString) {
+      if (!dateString) return ''
+      const date = new Date(dateString)
+      const now = new Date()
+      const diffMinutes = Math.floor((now - date) / (1000 * 60))
+      
+      if (diffMinutes < 1) return '刚刚'
+      if (diffMinutes < 60) return `${diffMinutes}分钟前`
+      if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}小时前`
+      if (diffMinutes < 10080) return `${Math.floor(diffMinutes / 1440)}天前`
+      
+      return date.toLocaleDateString()
+    },
+    
     switchTab(tab) {
       this.activeTab = tab
     },
@@ -276,24 +256,36 @@ export default {
     async handleApprove(item) {
       uni.showModal({
         title: '确认通过',
-        content: `确定要通过"${item.title}"的审核吗？`,
+        content: `确定要通过"${item.itemName}"的审核吗？`,
         success: async (res) => {
           if (res.confirm) {
             try {
-              // 模拟API请求
-              await new Promise(resolve => setTimeout(resolve, 500))
-              
-              item.status = 'approved'
-              this.reviewStats.approved++
-              this.reviewStats.pending--
-              
-              uni.showToast({
-                title: '审核通过',
-                icon: 'success'
+              // 调用API通过审核
+              const response = await reviewItem(item.id, {
+                status: 'approved',
+                reason: '符合要求，审核通过',
+                type: item.type
               })
+              
+              if (response.success) {
+                item.status = 'approved'
+                this.reviewStats.approved++
+                this.reviewStats.pending--
+                this.updateTabCounts()
+                
+                uni.showToast({
+                  title: '审核通过',
+                  icon: 'success'
+                })
+              } else {
+                uni.showToast({
+                  title: '操作失败: ' + (response.message || '未知错误'),
+                  icon: 'none'
+                })
+              }
             } catch (error) {
               uni.showToast({
-                title: '操作失败',
+                title: '操作失败: ' + (error.message || '未知错误'),
                 icon: 'none'
               })
             }
@@ -305,24 +297,36 @@ export default {
     async handleReject(item) {
       uni.showModal({
         title: '确认驳回',
-        content: `确定要驳回"${item.title}"的审核吗？`,
+        content: `确定要驳回"${item.itemName}"的审核吗？`,
         success: async (res) => {
           if (res.confirm) {
             try {
-              // 模拟API请求
-              await new Promise(resolve => setTimeout(resolve, 500))
-              
-              item.status = 'rejected'
-              this.reviewStats.rejected++
-              this.reviewStats.pending--
-              
-              uni.showToast({
-                title: '审核驳回',
-                icon: 'success'
+              // 调用API驳回审核
+              const response = await reviewItem(item.id, {
+                status: 'rejected',
+                reason: '不符合要求，审核驳回',
+                type: item.type
               })
+              
+              if (response.success) {
+                item.status = 'rejected'
+                this.reviewStats.rejected++
+                this.reviewStats.pending--
+                this.updateTabCounts()
+                
+                uni.showToast({
+                  title: '审核驳回',
+                  icon: 'success'
+                })
+              } else {
+                uni.showToast({
+                  title: '操作失败: ' + (response.message || '未知错误'),
+                  icon: 'none'
+                })
+              }
             } catch (error) {
               uni.showToast({
-                title: '操作失败',
+                title: '操作失败: ' + (error.message || '未知错误'),
                 icon: 'none'
               })
             }
@@ -333,7 +337,7 @@ export default {
     
     viewDetail(item) {
       uni.navigateTo({ 
-        url: `/pages/reviewer/review-detail?id=${item.id}&type=${item.type}` 
+        url: `/pages/user/item-detail?id=${item.id}` 
       })
     },
     

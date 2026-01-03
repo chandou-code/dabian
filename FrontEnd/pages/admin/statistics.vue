@@ -74,70 +74,6 @@
             </text>
           </view>
         </view>
-        
-        <view class="metric-card">
-          <view class="metric-icon activity-icon">⚡</view>
-          <view class="metric-content">
-            <text class="metric-number">{{ coreMetrics.activeUsers }}</text>
-            <text class="metric-label">活跃用户</text>
-            <text class="metric-trend positive">+{{ coreMetrics.activityGrowth }}%</text>
-          </view>
-        </view>
-      </view>
-      
-      <!-- 图表区域 -->
-      <view class="charts-grid">
-        <view class="chart-card">
-          <view class="chart-header">
-            <text class="chart-title">失物招领趋势</text>
-            <button class="chart-btn" @click="exportChart('trend')">导出</button>
-          </view>
-          <view class="chart-container">
-            <view class="chart-placeholder">
-              <text>📊 ECharts图表区域</text>
-              <text class="chart-desc">显示失物招领数量随时间的变化趋势</text>
-            </view>
-          </view>
-        </view>
-        
-        <view class="chart-card">
-          <view class="chart-header">
-            <text class="chart-title">物品类别分布</text>
-            <button class="chart-btn" @click="exportChart('category')">导出</button>
-          </view>
-          <view class="chart-container">
-            <view class="chart-placeholder">
-              <text>🥧 ECharts图表区域</text>
-              <text class="chart-desc">饼图显示不同类别物品的占比</text>
-            </view>
-          </view>
-        </view>
-        
-        <view class="chart-card">
-          <view class="chart-header">
-            <text class="chart-title">高频丢失地点</text>
-            <button class="chart-btn" @click="exportChart('location')">导出</button>
-          </view>
-          <view class="chart-container">
-            <view class="chart-placeholder">
-              <text>📊 ECharts图表区域</text>
-              <text class="chart-desc">柱状图显示不同地点的丢失频率</text>
-            </view>
-          </view>
-        </view>
-        
-        <view class="chart-card">
-          <view class="chart-header">
-            <text class="chart-title">找回效率分析</text>
-            <button class="chart-btn" @click="exportChart('efficiency')">导出</button>
-          </view>
-          <view class="chart-container">
-            <view class="chart-placeholder">
-              <text>📈 ECharts图表区域</text>
-              <text class="chart-desc">分析不同类别物品的找回效率</text>
-            </view>
-          </view>
-        </view>
       </view>
       
       <!-- 详细统计表格 -->
@@ -175,6 +111,7 @@
 
 <script>
 import Sidebar from '@/components/Sidebar.vue'
+import { getAdminStats } from '@/api/system.js'
 
 export default {
   name: 'Statistics',
@@ -280,30 +217,40 @@ export default {
     
     async loadStatistics() {
       try {
-        // 模拟API请求
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // 调用真实API获取统计数据
+        const response = await getAdminStats({
+          startDate: this.startDate,
+          endDate: this.endDate
+        })
         
-        // 更新统计数据
-        this.updateMetrics()
+        // 更新核心指标
+        const stats = response.data
+        if (stats) {
+          // 处理后端返回的数据结构，后端数据包含coreMetrics对象
+          const coreMetrics = stats.coreMetrics || {}
+          this.coreMetrics = {
+            totalUsers: coreMetrics.totalUsers || 0,
+            userGrowth: coreMetrics.userGrowth || 0,
+            totalItems: coreMetrics.totalItems || 0,
+            itemGrowth: coreMetrics.itemGrowth || 0,
+            recoveryRate: coreMetrics.recoveryRate || 0,
+            recoveryTrend: coreMetrics.recoveryTrend || 0,
+            activeUsers: coreMetrics.activeUsers || 0,
+            activityGrowth: coreMetrics.activityGrowth || 0
+          }
+          
+          // 更新类别统计
+          if (stats.categoryStats) {
+            this.categoryStats = stats.categoryStats
+          }
+        }
         
       } catch (error) {
         uni.showToast({
           title: '数据加载失败',
           icon: 'none'
         })
-      }
-    },
-    
-    updateMetrics() {
-      // 模拟数据更新
-      const randomGrowth = () => (Math.random() * 20 - 5).toFixed(1)
-      
-      this.coreMetrics = {
-        ...this.coreMetrics,
-        userGrowth: parseFloat(randomGrowth()),
-        itemGrowth: parseFloat(randomGrowth()),
-        recoveryTrend: parseFloat(randomGrowth()),
-        activityGrowth: parseFloat(randomGrowth())
+        console.error('加载统计数据失败:', error)
       }
     },
     
@@ -318,17 +265,36 @@ export default {
       })
     },
     
-    exportChart(chartType) {
-      uni.showToast({
-        title: `${chartType}图表导出功能开发中`,
-        icon: 'none'
-      })
-    },
-    
     exportStatistics() {
+      // 准备导出数据
+      const headers = ['类别', '发布数量', '找回数量', '找回率', '平均找回时间']
+      const rows = this.categoryStats.map(item => [
+        item.category,
+        item.total,
+        item.recovered,
+        `${item.recoveryRate}%`,
+        `${item.avgRecoveryTime || 0}天`
+      ])
+      
+      // 转换为CSV格式
+      let csvContent = headers.join(',') + '\n'
+      rows.forEach(row => {
+        csvContent += row.join(',') + '\n'
+      })
+      
+      // 创建下载链接并触发下载
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `统计报表_${this.formatDate(new Date())}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
       uni.showToast({
-        title: '报表导出功能开发中',
-        icon: 'none'
+        title: '报表导出成功',
+        icon: 'success'
       })
     }
   }
@@ -517,26 +483,11 @@ export default {
   padding: 20rpx;
 }
 
-.chart-placeholder {
+.chart-canvas {
+  width: 100%;
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   background: #f8f9fa;
   border-radius: 8rpx;
-  border: 2rpx dashed #e0e0e0;
-  gap: 10rpx;
-}
-
-.chart-placeholder text:first-child {
-  font-size: 36rpx;
-}
-
-.chart-desc {
-  font-size: 22rpx;
-  color: #999;
-  text-align: center;
 }
 
 /* 统计表格 */

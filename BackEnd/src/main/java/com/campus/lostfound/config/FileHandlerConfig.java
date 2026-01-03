@@ -14,7 +14,7 @@ import java.io.File;
 @Configuration
 public class FileHandlerConfig implements WebMvcConfigurer {
     
-    @Value("${app.upload.path:/uploads/}")
+    @Value("${app.upload.path:uploads}")
     private String uploadPath;
     
     @Override
@@ -28,12 +28,14 @@ public class FileHandlerConfig implements WebMvcConfigurer {
             resourceLocation = workingDir + File.separator + uploadPath;
         }
         
-        // 确保路径格式正确
-        if (!resourceLocation.endsWith(File.separator)) {
-            resourceLocation = resourceLocation + File.separator;
+        // 确保路径格式正确 - 统一使用正斜杠
+        resourceLocation = resourceLocation.replace("\\", "/");
+        if (!resourceLocation.endsWith("/")) {
+            resourceLocation = resourceLocation + "/";
         }
         
         // 配置文件访问路径
+        System.out.println("配置静态资源路径: " + resourceLocation);
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations("file:" + resourceLocation);
     }

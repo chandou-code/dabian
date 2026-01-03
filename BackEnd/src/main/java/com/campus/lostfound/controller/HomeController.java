@@ -1,6 +1,9 @@
 package com.campus.lostfound.controller;
 
 import com.campus.lostfound.common.Result;
+import com.campus.lostfound.service.StatisticsService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -9,10 +12,14 @@ import java.util.Map;
 /**
  * 首页控制器
  */
+@Slf4j
 @RestController
 @RequestMapping("/")
 @CrossOrigin
 public class HomeController {
+    
+    @Autowired
+    private StatisticsService statisticsService;
     
     /**
      * 健康检查
@@ -47,5 +54,36 @@ public class HomeController {
         });
         
         return Result.success(data);
+    }
+    
+    /**
+     * 获取首页统计数据
+     */
+    @GetMapping("/home")
+    public Result<Map<String, Object>> getHomeStatistics() {
+        try {
+            log.info("获取首页统计数据");
+            Map<String, Object> homeData = statisticsService.getHomeStatistics();
+            return Result.success("获取成功", homeData);
+        } catch (Exception e) {
+            log.error("获取首页统计数据失败", e);
+            return Result.error("获取首页统计数据失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取首页最新物品列表
+     */
+    @GetMapping("/home/recent")
+    public Result<Map<String, Object>> getRecentItems(
+            @RequestParam(defaultValue = "10") Integer limit) {
+        try {
+            log.info("获取首页最新物品列表，limit: {}", limit);
+            Map<String, Object> recentData = statisticsService.getRecentItems(limit);
+            return Result.success("获取成功", recentData);
+        } catch (Exception e) {
+            log.error("获取首页最新物品列表失败", e);
+            return Result.error("获取首页最新物品列表失败：" + e.getMessage());
+        }
     }
 }

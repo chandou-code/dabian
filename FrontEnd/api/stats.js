@@ -30,3 +30,13 @@ export const getDashboardMatches = (page = 1, size = 10) => {
 export const getAiMatches = () => {
   return get('/statistics/dashboard/matches/ai')
 }
+
+// 获取首页统计数据（公开接口，无需登录）
+export const getHomeStats = () => {
+  return get('/home')
+}
+
+// 获取首页最新物品列表（公开接口，无需登录）
+export const getHomeRecentItems = (limit = 10) => {
+  return get('/home/recent', { limit })
+}

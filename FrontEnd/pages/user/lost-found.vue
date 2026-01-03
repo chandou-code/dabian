@@ -13,7 +13,7 @@
               placeholder="搜索物品名称或描述..."
               @confirm="handleSearch"
             />
-            <button class="search-btn" @click="handleSearch">🔍</button>
+            <button class="search-btn" @click="handleSearch">搜索</button>
           </view>
         </view>
         
@@ -88,7 +88,6 @@
           :class="{ 'active': activeTab === tab.value }"
           @click="switchTab(tab.value)"
         >
-          <text class="tab-icon">{{ tab.icon }}</text>
           <text class="tab-text">{{ tab.label }}</text>
           <text class="tab-count">{{ tab.count }}</text>
         </view>
@@ -101,7 +100,7 @@
         </view>
         
         <view v-else-if="filteredItems.length === 0" class="empty-state">
-          <text class="empty-icon">🔍</text>
+          <text class="empty-icon">无</text>
           <text class="empty-text">暂无相关失物招领信息</text>
           <button class="publish-btn" @click="navigateTo('/pages/user/publish-lost')">
             发布失物信息
@@ -113,15 +112,24 @@
             v-for="item in paginatedItems" 
             :key="item.id" 
             class="item-card"
-            @click="viewItem(item)"
+            :class="{ 'item-card-disabled': item.status === 'pending' }"
+            @click.stop="item.status !== 'pending' && viewItem(item)"
           >
-            <view class="item-image">
-              <image :src="item.image || '/static/default-item.jpg'" mode="aspectFill"></image>
-              <view class="item-status" :class="getStatusClass(item.status)">
+            <view class="item-image" @click.stop>
+              <image 
+                v-if="item.status !== 'pending'" 
+                :src="item.image || '/static/default-item.jpg'" 
+                mode="aspectFill" 
+                @click.stop
+              ></image>
+              <view v-else class="item-no-image">
+                <text class="no-image-text">待审核</text>
+              </view>
+              <view class="item-status" :class="getStatusClass(item.status)" @click.stop>
                 {{ getStatusText(item.status) }}
               </view>
               <!-- 图片数量标识 -->
-              <view v-if="item.imageCount > 1" class="image-count">
+              <view v-if="item.status !== 'pending' && item.imageCount > 1" class="image-count" @click.stop>
                 {{ item.imageCount }}+
               </view>
             </view>
@@ -131,10 +139,10 @@
               <text class="item-desc">{{ item.description }}</text>
               
               <view class="item-info">
-                <text class="info-item">📍 {{ item.location }}</text>
-                <text class="info-item">📅 {{ item.time }}</text>
-                <text class="info-item">🏷️ {{ item.category }}</text>
-                <text class="info-item">👤 {{ item.userName || '匿名用户' }}</text>
+                <text class="info-item">地点: {{ item.location }}</text>
+                <text class="info-item">时间: {{ item.time }}</text>
+                <text class="info-item">分类: {{ item.category }}</text>
+                <text class="info-item">发布者: {{ item.userName || '匿名用户' }}</text>
               </view>
               
               <view class="item-footer">
@@ -221,10 +229,10 @@ export default {
       ],
       
       tabs: [
-        { label: '全部', value: 'all', icon: '📋', count: 0 },
-        { label: '失物', value: 'lost', icon: '🔍', count: 0 },
-        { label: '招领', value: 'found', icon: '✅', count: 0 },
-        { label: '已找回', value: 'recovered', icon: '🎉', count: 0 }
+        { label: '全部', value: 'all', count: 0 },
+        { label: '失物', value: 'lost', count: 0 },
+        { label: '招领', value: 'found', count: 0 },
+        { label: '已找回', value: 'recovered', count: 0 }
       ],
       
       items: []
@@ -242,6 +250,10 @@ export default {
       console.log('当前选中状态:', this.selectedStatus)
       console.log('当前位置筛选:', this.locationFilter)
       console.log('当前搜索关键词:', this.searchKeyword)
+      
+      // 1. 过滤已拒绝的物品，直接隐藏
+      filtered = filtered.filter(item => item.status !== 'rejected')
+      console.log('过滤已拒绝物品后数量:', filtered.length)
       
       // 按标签筛选
       if (this.activeTab !== 'all') {
@@ -283,6 +295,26 @@ export default {
         )
         console.log('按关键词筛选后数量:', filtered.length)
       }
+      
+      // 2. 按状态排序：已发布 > 待审核 > 已认领 > 已找回
+      const statusOrder = {
+        approved: 0,
+        pending: 1,
+        claimed: 2,
+        found: 3
+      }
+      
+      filtered.sort((a, b) => {
+        const statusA = statusOrder[a.status] || 99
+        const statusB = statusOrder[b.status] || 99
+        
+        // 状态相同时，按发布时间倒序
+        if (statusA === statusB) {
+          return new Date(b.created_at) - new Date(a.created_at)
+        }
+        
+        return statusA - statusB
+      })
       
       console.log('最终筛选结果数量:', filtered.length)
       return filtered
@@ -362,6 +394,9 @@ export default {
           // 确定物品类型和位置字段名
           const itemType = safeItem.type || (safeItem.foundTime ? 'found' : 'lost')
           const locationField = itemType === 'lost' ? 'lostLocation' : 'foundLocation'
+          const timeField = itemType === 'lost' ? 'lostTime' : 'foundTime'
+          
+
           
           const imagesArray = this.getImagesArray(safeItem.images)
           return {
@@ -369,9 +404,9 @@ export default {
             title: safeItem.itemName || (itemType === 'lost' ? '未命名失物' : '未命名招领'),
             description: safeItem.description || '',
             category: safeItem.category || '其他物品',
-            location: safeItem[locationField] || safeItem.location || '未知地点',
-            time: this.formatTime(safeItem.lostTime || safeItem.foundTime || safeItem.eventTime),
-            publishTime: this.formatTime(safeItem.createdAt),
+            location: safeItem[locationField] || safeItem.location || '未填写地点',
+            time: this.formatTime(safeItem.created_at),
+            publishTime: this.formatDateTime(safeItem.created_at),
             type: itemType,
             status: safeItem.status || 'pending',
             image: this.getFirstImage(safeItem.images),
@@ -393,6 +428,37 @@ export default {
         })
       } finally {
         this.loading = false
+      }
+    },
+    
+    viewItem(item) {
+      console.log('点击物品卡片:', item)
+      console.log('物品ID:', item.id)
+      console.log('准备跳转到:', `/pages/user/item-detail?id=${item.id}`)
+      
+      try {
+        const url = `/pages/user/item-detail?id=${item.id}`
+        console.log('最终URL:', url)
+        
+        uni.navigateTo({ 
+          url: url,
+          success: () => {
+            console.log('页面跳转成功')
+          },
+          fail: (err) => {
+            console.error('页面跳转失败:', err)
+            // 备用跳转方式
+            setTimeout(() => {
+              window.location.href = `/#${url}`
+            }, 100)
+          }
+        })
+      } catch (error) {
+        console.error('跳转异常:', error)
+        // 备用跳转方式
+        setTimeout(() => {
+          window.location.href = `/#/pages/user/item-detail?id=${item.id}`
+        }, 100)
       }
     },
     
@@ -471,16 +537,43 @@ export default {
     },
     
     viewItem(item) {
-      uni.navigateTo({ 
-        url: `/pages/user/item-detail?id=${item.id}&type=${item.type}` 
-      })
+      console.log('点击物品卡片:', item)
+      console.log('物品ID:', item.id)
+      console.log('准备跳转到:', `/pages/user/item-detail?id=${item.id}`)
+      
+      try {
+        const url = `/pages/user/item-detail?id=${item.id}`
+        console.log('最终URL:', url)
+        
+        uni.navigateTo({ 
+          url: url,
+          success: () => {
+            console.log('页面跳转成功')
+          },
+          fail: (err) => {
+            console.error('页面跳转失败:', err)
+            // 备用跳转方式
+            setTimeout(() => {
+              window.location.href = `/#${url}`
+            }, 100)
+          }
+        })
+      } catch (error) {
+        console.error('跳转异常:', error)
+        // 备用跳转方式
+        setTimeout(() => {
+          window.location.href = `/#/pages/user/item-detail?id=${item.id}`
+        }, 100)
+      }
     },
     
     getStatusClass(status) {
       const classMap = {
         pending: 'status-pending',
         approved: 'status-approved',
-        found: 'status-found'
+        found: 'status-found',
+        claimed: 'status-claimed',
+        rejected: 'status-rejected'
       }
       return classMap[status] || 'status-pending'
     },
@@ -489,26 +582,63 @@ export default {
       const textMap = {
         pending: '待审核',
         approved: '已发布',
-        found: '已找回'
+        found: '已找回',
+        claimed: '已认领',
+        rejected: '已拒绝'
       }
       return textMap[status] || '待审核'
     },
     
     formatTime(dateString) {
-      if (!dateString) return '未知时间'
+      if (!dateString) {
+        return '未知时间'
+      }
       
-      const date = new Date(dateString)
-      const now = new Date()
-      const diffTime = Math.abs(now - date)
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-      const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
+      try {
+        const date = new Date(dateString)
+        if (isNaN(date.getTime())) {
+          return '未知时间'
+        }
+        
+        const now = new Date()
+        const diffTime = Math.abs(now - date)
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+        const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
+        const diffMinutes = Math.floor(diffTime / (1000 * 60))
+        
+        if (diffDays > 0) {
+          return `${diffDays}天前`
+        } else if (diffHours > 0) {
+          return `${diffHours}小时前`
+        } else if (diffMinutes > 0) {
+          return `${diffMinutes}分钟前`
+        } else {
+          return '刚刚'
+        }
+      } catch (error) {
+        return '未知时间'
+      }
+    },
+    
+    formatDateTime(dateString) {
+      if (!dateString) {
+        return '未知时间'
+      }
       
-      if (diffDays > 0) {
-        return `${diffDays}天前`
-      } else if (diffHours > 0) {
-        return `${diffHours}小时前`
-      } else {
-        return '刚刚'
+      try {
+        const date = new Date(dateString)
+        if (isNaN(date.getTime())) {
+          return '未知时间'
+        }
+        
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        const hours = String(date.getHours()).padStart(2, '0')
+        const minutes = String(date.getMinutes()).padStart(2, '0')
+        return `${year}-${month}-${day} ${hours}:${minutes}`
+      } catch (error) {
+        return '未知时间'
       }
     },
     
@@ -883,10 +1013,38 @@ export default {
   box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.15);
 }
 
+/* 待审核物品卡片样式 */
+.item-card-disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.item-card-disabled:hover {
+  transform: none;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
+}
+
 .item-image {
   position: relative;
   height: 200rpx;
   overflow: hidden;
+}
+
+/* 待审核物品无图片占位样式 */
+.item-no-image {
+  width: 100%;
+  height: 100%;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #e0e0e0;
+}
+
+.no-image-text {
+  font-size: 28rpx;
+  color: #999;
+  font-weight: 500;
 }
 
 .item-image image {
@@ -908,6 +1066,8 @@ export default {
 .status-pending { background: #ff9800; }
 .status-approved { background: #4caf50; }
 .status-found { background: #2196f3; }
+.status-claimed { background: #9c27b0; }
+.status-rejected { background: #f44336; }
 
 .image-count {
   position: absolute;

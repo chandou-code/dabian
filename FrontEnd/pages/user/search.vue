@@ -5,22 +5,10 @@
     <view class="main-content" :class="{ 'main-content-expanded': !showSidebar }">
       <!-- 搜索区域 -->
       <view class="search-section">
-        <text class="section-title">智能搜索</text>
-        
-        <view class="search-tabs">
-          <button 
-            v-for="tab in searchTabs" 
-            :key="tab.value"
-            class="tab-btn"
-            :class="{ 'active': activeSearchTab === tab.value }"
-            @click="switchSearchTab(tab.value)"
-          >
-            {{ tab.label }}
-          </button>
-        </view>
+        <text class="section-title">文本搜索</text>
         
         <!-- 文本搜索 -->
-        <view v-if="activeSearchTab === 'text'" class="text-search">
+        <view class="text-search">
           <view class="search-box">
             <input 
               v-model="searchQuery" 
@@ -53,22 +41,6 @@
                 {{ timeRanges[timeRangeIndex] }}
               </view>
             </picker>
-          </view>
-        </view>
-        
-        <!-- 以图搜图 -->
-        <view v-if="activeSearchTab === 'image'" class="image-search">
-          <view class="upload-area" @click="chooseSearchImage">
-            <image v-if="searchImage" :src="searchImage" mode="aspectFit" class="preview-image"></image>
-            <view v-else class="upload-placeholder">
-              <text class="upload-icon">📷</text>
-              <text class="upload-text">点击上传图片搜索</text>
-            </view>
-          </view>
-          
-          <view v-if="searchImage" class="image-search-actions">
-            <button class="search-image-btn" @click="searchByImage">开始搜索</button>
-            <button class="clear-image-btn" @click="clearSearchImage">清除图片</button>
           </view>
         </view>
       </view>
@@ -106,9 +78,6 @@
           >
             <view class="result-image">
               <image :src="item.image || '/static/default-item.jpg'" mode="aspectFill"></image>
-              <view class="match-score" v-if="item.matchScore">
-                匹配度 {{ item.matchScore }}%
-              </view>
             </view>
             
             <view class="result-content">
@@ -154,6 +123,7 @@
 
 <script>
 import Sidebar from '@/components/Sidebar.vue'
+import * as api from '@/api'
 
 export default {
   name: 'SearchPage',
@@ -164,18 +134,11 @@ export default {
   data() {
     return {
       showSidebar: true,
-      activeSearchTab: 'text',
       searchQuery: '',
-      searchImage: '',
       loading: false,
       hasSearched: false,
       categoryIndex: -1,
       timeRangeIndex: 0,
-      
-      searchTabs: [
-        { label: '文本搜索', value: 'text' },
-        { label: '以图搜图', value: 'image' }
-      ],
       
       categories: [
         '电子产品', '钱包证件', '书籍文具', '生活用品', 
@@ -193,11 +156,6 @@ export default {
   },
   
   methods: {
-    switchSearchTab(tab) {
-      this.activeSearchTab = tab
-      this.clearResults()
-    },
-    
     async handleSearch() {
       if (!this.searchQuery.trim()) {
         uni.showToast({
@@ -211,12 +169,42 @@ export default {
       this.hasSearched = true
       
       try {
-        // 模拟API请求
-        await new Promise(resolve => setTimeout(resolve, 1500))
+        // 准备搜索参数
+        const searchParams = {
+          keyword: this.searchQuery,
+          category: this.categoryIndex !== -1 ? this.categories[this.categoryIndex] : '',
+          timeRange: this.getTimeRangeValue(this.timeRangeIndex),
+          page: 1,
+          size: 20
+        }
         
-        this.searchResults = this.generateMockResults()
+        // 调用真实API搜索物品
+        const response = await api.searchItems(searchParams)
+        
+        if (response.success && response.data && response.data.list) {
+          // 转换API返回的数据格式
+          this.searchResults = response.data.list.map(item => ({
+            id: item.id,
+            title: item.title || '未命名物品',
+            description: item.description || '',
+            category: item.category || '其他物品',
+            location: (item.location || '未填写地点'),
+            time: this.formatTime(item.time),
+            type: item.type || 'lost',
+            status: item.status || 'pending',
+            image: item.image || ''
+          }))
+        } else {
+          this.searchResults = []
+          uni.showToast({
+            title: '未找到相关结果',
+            icon: 'none'
+          })
+        }
         
       } catch (error) {
+        console.error('搜索失败:', error)
+        this.searchResults = []
         uni.showToast({
           title: '搜索失败',
           icon: 'none'
@@ -224,61 +212,6 @@ export default {
       } finally {
         this.loading = false
       }
-    },
-    
-    chooseSearchImage() {
-      uni.chooseImage({
-        count: 1,
-        sizeType: ['compressed'],
-        sourceType: ['album', 'camera'],
-        success: (res) => {
-          this.searchImage = res.tempFilePaths[0]
-        },
-        fail: (err) => {
-          uni.showToast({
-            title: '选择图片失败',
-            icon: 'none'
-          })
-        }
-      })
-    },
-    
-    async searchByImage() {
-      if (!this.searchImage) {
-        uni.showToast({
-          title: '请先上传图片',
-          icon: 'none'
-        })
-        return
-      }
-      
-      this.loading = true
-      this.hasSearched = true
-      
-      try {
-        // 模拟以图搜图
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        this.searchResults = this.generateImageSearchResults()
-        
-        uni.showToast({
-          title: '图片搜索完成',
-          icon: 'success'
-        })
-        
-      } catch (error) {
-        uni.showToast({
-          title: '图片搜索失败',
-          icon: 'none'
-        })
-      } finally {
-        this.loading = false
-      }
-    },
-    
-    clearSearchImage() {
-      this.searchImage = ''
-      this.clearResults()
     },
     
     searchByTag(tag) {
@@ -300,55 +233,70 @@ export default {
       }
     },
     
-    generateMockResults() {
-      const mockData = []
-      const types = ['lost', 'found']
-      const statuses = ['pending', 'approved', 'found']
-      
-      for (let i = 1; i <= 8; i++) {
-        const type = types[Math.floor(Math.random() * types.length)]
-        const status = statuses[Math.floor(Math.random() * statuses.length)]
-        
-        mockData.push({
-          id: i,
-          title: `${this.searchQuery}相关物品 ${i}`,
-          description: `与"${this.searchQuery}"相关的物品描述信息，包含详细特征...`,
-          category: this.categories[Math.floor(Math.random() * this.categories.length)],
-          location: `教学楼A${Math.floor(Math.random() * 5) + 1}楼`,
-          time: `${Math.floor(Math.random() * 7) + 1}天前`,
-          type,
-          status,
-          image: Math.random() > 0.5 ? '/static/item-sample.jpg' : null
-        })
-      }
-      
-      return mockData
+    /**
+     * 获取时间范围值
+     */
+    getTimeRangeValue(index) {
+      const timeRanges = ['all', 'day', '3days', 'week', 'month']
+      return timeRanges[index] || 'all'
     },
     
-    generateImageSearchResults() {
-      const mockData = []
-      const types = ['lost', 'found']
-      const statuses = ['pending', 'approved', 'found']
+    /**
+     * 格式化时间
+     */
+    formatTime(time) {
+      if (!time) return '未知时间'
       
-      for (let i = 1; i <= 6; i++) {
-        const type = types[Math.floor(Math.random() * types.length)]
-        const status = statuses[Math.floor(Math.random() * statuses.length)]
+      try {
+        const date = new Date(time)
+        const now = new Date()
+        const diff = now - date
         
-        mockData.push({
-          id: i,
-          title: `图片匹配物品 ${i}`,
-          description: '根据上传图片匹配到的相似物品，特征高度相似...',
-          category: this.categories[Math.floor(Math.random() * this.categories.length)],
-          location: `图书馆${Math.floor(Math.random() * 3) + 1}楼`,
-          time: `${Math.floor(Math.random() * 7) + 1}天前`,
-          type,
-          status,
-          image: '/static/item-sample.jpg',
-          matchScore: Math.floor(Math.random() * 30) + 70 // 70-99% 匹配度
-        })
+        const minutes = Math.floor(diff / 60000)
+        const hours = Math.floor(diff / 3600000)
+        const days = Math.floor(diff / 86400000)
+        const months = Math.floor(diff / (86400000 * 30))
+        
+        if (minutes < 60) return `${minutes}分钟前`
+        if (hours < 24) return `${hours}小时前`
+        if (days < 30) return `${days}天前`
+        if (months < 12) return `${months}月前`
+        
+        return date.toLocaleDateString('zh-CN')
+      } catch (e) {
+        return '未知时间'
+      }
+    },
+    
+    /**
+     * 从图片数据中获取第一张图片
+     */
+    getFirstImage(images) {
+      if (!images) return null
+      
+      // 如果是数组，返回第一张有效图片
+      if (Array.isArray(images)) {
+        const firstImage = images.find(img => img && typeof img === 'string' && img.startsWith('http'))
+        return firstImage || null
       }
       
-      return mockData
+      // 如果是字符串，尝试解析为JSON数组
+      if (typeof images === 'string') {
+        try {
+          const imagesArray = JSON.parse(images)
+          if (Array.isArray(imagesArray)) {
+            const firstImage = imagesArray.find(img => img && typeof img === 'string' && img.startsWith('http'))
+            return firstImage || null
+          }
+        } catch (error) {
+          // 如果解析失败，直接检查是否是单个图片URL
+          if (images.startsWith('http')) {
+            return images
+          }
+        }
+      }
+      
+      return null
     },
     
     clearResults() {
@@ -491,73 +439,7 @@ export default {
   color: #333;
 }
 
-/* 以图搜图 */
-.image-search {
-  text-align: center;
-}
 
-.upload-area {
-  width: 300rpx;
-  height: 300rpx;
-  margin: 0 auto 20rpx;
-  border: 2rpx dashed #e0e0e0;
-  border-radius: 12rpx;
-  overflow: hidden;
-  cursor: pointer;
-  transition: border-color 0.3s;
-}
-
-.upload-area:hover {
-  border-color: #2196f3;
-}
-
-.preview-image {
-  width: 100%;
-  height: 100%;
-}
-
-.upload-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10rpx;
-}
-
-.upload-icon {
-  font-size: 60rpx;
-}
-
-.upload-text {
-  font-size: 24rpx;
-  color: #666;
-}
-
-.image-search-actions {
-  display: flex;
-  gap: 20rpx;
-  justify-content: center;
-}
-
-.search-image-btn {
-  background: #2196f3;
-  color: white;
-  border: none;
-  padding: 15rpx 30rpx;
-  border-radius: 8rpx;
-  font-size: 26rpx;
-}
-
-.clear-image-btn {
-  background: #f5f5f5;
-  color: #666;
-  border: 2rpx solid #e0e0e0;
-  padding: 15rpx 30rpx;
-  border-radius: 8rpx;
-  font-size: 26rpx;
-}
 
 /* 搜索结果 */
 .search-results {

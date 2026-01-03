@@ -1,8 +1,9 @@
 package com.campus.lostfound.controller;
 
 import com.campus.lostfound.common.Result;
+import com.campus.lostfound.enums.ReviewAction;
 import com.campus.lostfound.service.ItemService;
-import com.campus.lostfound.service.ReviewService;
+import com.campus.lostfound.service.IReviewService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -23,7 +24,7 @@ public class ReviewController {
     private ItemService itemService;
     
     @Autowired
-    private ReviewService reviewService;
+    private IReviewService reviewService;
     
     @GetMapping("/pending")
     public Result<Map<String, Object>> getPendingItems(
@@ -76,8 +77,11 @@ public class ReviewController {
                 return Result.error("审核状态只能是approved或rejected");
             }
             
+            // 将status转换为ReviewAction枚举
+            ReviewAction action = ReviewAction.valueOf(status);
+            
             Map<String, Object> result = reviewService.reviewItem(
-                id, status, reason, type, reviewerId
+                id, status, reason, action, reviewerId
             );
             
             return Result.success("审核成功", result);
@@ -98,13 +102,19 @@ public class ReviewController {
         try {
             Long reviewerId = 2L; // TODO: 从JWT解析审核员ID
             @SuppressWarnings("unchecked")
-            List<Long> itemIds = (List<Long>) batchData.get("itemIds");
+            List<Long> itemIdsList = (List<Long>) batchData.get("itemIds");
             String status = (String) batchData.get("status");
             String reason = (String) batchData.get("reason");
             String type = (String) batchData.get("type");
             
+            // 将List<Long>转换为Long[]
+            Long[] itemIds = itemIdsList.toArray(new Long[0]);
+            
+            // 将status转换为ReviewAction枚举
+            ReviewAction action = ReviewAction.valueOf(status);
+            
             Map<String, Object> result = reviewService.batchReview(
-                itemIds, status, reason, type, reviewerId
+                itemIds, status, reason, action, reviewerId
             );
             
             return Result.success("批量审核成功", result);
@@ -151,5 +161,21 @@ public class ReviewController {
     public Result<Map<String, String>> test() {
         Map<String, String> data = Map.of("message", "ReviewController正常工作", "status", "ok");
         return Result.success("测试成功", data);
+    }
+    
+    @GetMapping("/dashboard")
+    public Result<Map<String, Object>> getReviewerDashboard(@RequestHeader("Authorization") String token) {
+        try {
+            // TODO: 从JWT解析审核员ID
+            Long reviewerId = 2L;
+            
+            // 获取审核员统计数据
+            Map<String, Object> stats = itemService.getReviewerStatistics(reviewerId);
+            
+            return Result.success(stats);
+        } catch (Exception e) {
+            log.error("获取审核员仪表板数据失败", e);
+            return Result.error("获取仪表板数据失败：" + e.getMessage());
+        }
     }
 }

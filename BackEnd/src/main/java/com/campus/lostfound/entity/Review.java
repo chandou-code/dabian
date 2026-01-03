@@ -1,6 +1,7 @@
 package com.campus.lostfound.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.campus.lostfound.enums.ReviewAction;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
@@ -41,7 +42,7 @@ public class Review implements Serializable {
      * 审核动作：approved-通过，rejected-驳回
      */
     @TableField("action")
-    private String action;
+    private ReviewAction action;
 
     /**
      * 审核原因

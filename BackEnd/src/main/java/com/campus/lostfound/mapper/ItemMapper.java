@@ -45,6 +45,11 @@ public interface ItemMapper extends BaseMapper<Item> {
      * 获取用户最近活动
      */
     List<Item> selectUserRecentActivities(@Param("userId") Long userId, @Param("limit") Integer limit);
+    
+    /**
+     * 获取用户发布的所有物品
+     */
+    List<Item> selectUserItems(@Param("userId") Long userId);
 
     /**
      * 获取推荐匹配
@@ -130,7 +135,37 @@ public interface ItemMapper extends BaseMapper<Item> {
     int getUserUnreadNotificationCount(@Param("userId") Long userId);
     
     /**
+     * 获取全局失物数量
+     */
+    int getGlobalLostCount();
+    
+    /**
+     * 获取全局招领数量
+     */
+    int getGlobalFoundCount();
+    
+    /**
+     * 获取全局已找回物品数量
+     */
+    int getGlobalRecoveredCount();
+    
+    /**
+     * 获取最新已审核物品列表
+     */
+    List<Map<String, Object>> getRecentApprovedItems(@Param("limit") Integer limit);
+    
+    /**
      * 获取用户物品统计详情
      */
     Map<String, Object> getUserItemStats(@Param("userId") Long userId);
+    
+    /**
+     * 根据日期和类型统计物品数量
+     */
+    int countItemsByDateAndType(@Param("date") String date, @Param("type") String type);
+    
+    /**
+     * 根据日期统计已找回物品数量
+     */
+    int countRecoveredItemsByDate(@Param("date") String date);
 }

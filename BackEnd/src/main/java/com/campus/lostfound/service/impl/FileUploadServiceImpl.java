@@ -34,7 +34,7 @@ public class FileUploadServiceImpl implements FileUploadService {
     @Autowired
     private FileUploadMapper fileUploadMapper;
     
-    @Value("${app.upload.path:/uploads/}")
+    @Value("${app.upload.path:uploads}")
     private String uploadPath;
     
     private static final List<String> ALLOWED_IMAGE_TYPES = Arrays.asList(
@@ -61,9 +61,9 @@ public class FileUploadServiceImpl implements FileUploadService {
                 return null;
             }
             
-            // 创建目录
+            // 创建目录 - 统一使用正斜杠
             String dateFolder = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
-            String targetFolder = uploadPath + (StrUtil.isNotBlank(folder) ? folder + "/" : "") + dateFolder;
+            String targetFolder = uploadPath.replace("\\", "/") + (StrUtil.isNotBlank(folder) ? folder + "/" : "") + dateFolder;
             
             // 处理相对路径，转换为绝对路径
             File directory = new File(targetFolder);
@@ -95,6 +95,8 @@ public class FileUploadServiceImpl implements FileUploadService {
             // 返回相对路径
             String relativePath = (StrUtil.isNotBlank(folder) ? folder + "/" : "") + dateFolder + "/" + fileName;
             log.info("文件上传成功：{}", relativePath);
+            log.info("文件保存绝对路径：{}", targetFile.getAbsolutePath());
+            log.info("文件是否存在：{}", targetFile.exists());
             
             return relativePath;
             

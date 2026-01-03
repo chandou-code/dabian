@@ -33,20 +33,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public User login(String username, String password, String loginIp) {
         try {
+            log.info("开始验证用户登录 - 用户名: {}", username);
+            
             LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(User::getUsername, username)
                    .eq(User::getStatus, 1);
             
             User user = getOne(wrapper);
-            if (user != null && encryptPassword(password).equals(user.getPassword())) {
+            if (user == null) {
+                log.warn("用户不存在或已禁用: {}", username);
+                return null;
+            }
+            
+            String encryptedPassword = encryptPassword(password);
+            log.info("密码验证 - 输入密码加密后: {}, 数据库密码: {}", encryptedPassword, user.getPassword());
+            
+            if (encryptedPassword.equals(user.getPassword())) {
+                log.info("密码验证成功 - 用户ID: {}, 用户名: {}", user.getId(), user.getUsername());
                 // 更新登录时间和IP
                 user.setUpdatedAt(LocalDateTime.now());
                 updateById(user);
                 return user;
+            } else {
+                log.warn("密码验证失败 - 用户: {}, 加密密码不匹配", username);
+                return null;
             }
-            return null;
         } catch (Exception e) {
-            log.error("用户登录失败", e);
+            log.error("用户登录异常", e);
             return null;
         }
     }
@@ -178,6 +191,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             user.setAvatar(userInfo.getAvatar());
             user.setCollege(userInfo.getCollege());
             user.setGrade(userInfo.getGrade());
+            user.setRole(userInfo.getRole());
             user.setUpdatedAt(LocalDateTime.now());
             
             return updateById(user);

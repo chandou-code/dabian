@@ -2,6 +2,7 @@ package com.campus.lostfound.service;
 
 import com.campus.lostfound.dto.DashboardDTO;
 import com.campus.lostfound.mapper.ItemMapper;
+import com.campus.lostfound.service.IReviewService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,7 +25,7 @@ public class StatisticsService {
     private UserService userService;
     
     @Autowired
-    private ReviewService reviewService;
+    private IReviewService reviewService;
     
     @Autowired
     private ActivityService activityService;
@@ -400,5 +401,41 @@ public class StatisticsService {
     private int getActiveUserCount() {
         // 这里简化处理，实际应该统计最近活跃的用户数量
         return 320;
+    }
+    
+    /**
+     * 获取首页统计数据
+     */
+    public Map<String, Object> getHomeStatistics() {
+        Map<String, Object> homeStats = new HashMap<>();
+        
+        // 获取总数统计
+        homeStats.put("totalLostItems", itemService.getLostItemCount(null));
+        homeStats.put("totalFoundItems", itemService.getFoundItemCount(null));
+        homeStats.put("totalItems", itemService.getTotalItemCount());
+        homeStats.put("completedClaims", itemService.getCompletedClaimsCount(null));
+        
+        // 获取回收率
+        double recoveryRate = getOverallRecoveryRate();
+        homeStats.put("recoveryRate", Math.round(recoveryRate * 10.0) / 10.0);
+        
+        return homeStats;
+    }
+    
+    /**
+     * 获取首页最新物品列表
+     */
+    public Map<String, Object> getRecentItems(Integer limit) {
+        Map<String, Object> recentData = new HashMap<>();
+        
+        // 获取最新失物
+        List<Map<String, Object>> recentLostItems = itemService.getRecentLostItems(limit);
+        // 获取最新招领
+        List<Map<String, Object>> recentFoundItems = itemService.getRecentFoundItems(limit);
+        
+        recentData.put("lostItems", recentLostItems);
+        recentData.put("foundItems", recentFoundItems);
+        
+        return recentData;
     }
 }

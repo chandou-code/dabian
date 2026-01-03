@@ -1,6 +1,5 @@
 package com.campus.lostfound.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -9,8 +8,10 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.lostfound.common.constants.StatusConstants;
+import com.campus.lostfound.dto.ItemDetailDTO;
 import com.campus.lostfound.entity.Item;
 import com.campus.lostfound.entity.Review;
+import com.campus.lostfound.enums.ReviewAction;
 import com.campus.lostfound.entity.User;
 import com.campus.lostfound.mapper.ItemMapper;
 import com.campus.lostfound.mapper.ReviewMapper;
@@ -45,8 +46,10 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
             return null;
         }
         
-        // 设置发布信息
-        item.setType(StatusConstants.ITEM_TYPE_LOST);
+        // 设置发布信息 - 确保type为lost，但使用前端传递的值
+        if (item.getType() == null || !item.getType().equals("lost")) {
+            item.setType(StatusConstants.ITEM_TYPE_LOST);
+        }
         item.setStatus(StatusConstants.ITEM_STATUS_PENDING);
         item.setCreatedAt(LocalDateTime.now());
         item.setUpdatedAt(LocalDateTime.now());
@@ -71,8 +74,10 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
             return null;
         }
         
-        // 设置发布信息
-        item.setType(StatusConstants.ITEM_TYPE_FOUND);
+        // 设置发布信息 - 确保type为found，但使用前端传递的值
+        if (item.getType() == null || !item.getType().equals("found")) {
+            item.setType(StatusConstants.ITEM_TYPE_FOUND);
+        }
         item.setStatus(StatusConstants.ITEM_STATUS_PENDING);
         item.setCreatedAt(LocalDateTime.now());
         item.setUpdatedAt(LocalDateTime.now());
@@ -111,6 +116,93 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
         }
         
         return item;
+    }
+    
+    @Override
+    public ItemDetailDTO getItemDetailWithUser(Long itemId) {
+        if (itemId == null) {
+            return null;
+        }
+        
+        Item item = getById(itemId);
+        if (item == null) {
+            return null;
+        }
+        
+        // 增加浏览次数
+        baseMapper.updateViewCount(itemId);
+        
+        // 转换为DTO
+        ItemDetailDTO dto = new ItemDetailDTO();
+        org.springframework.beans.BeanUtils.copyProperties(item, dto);
+        
+        // 获取用户信息并脱敏
+        User user = userService.getById(item.getSubmitterId());
+        if (user != null) {
+            dto.setUserName(user.getRealName() != null ? user.getRealName() : user.getUsername());
+            dto.setUserPhone(maskPhone(user.getPhone()));
+            dto.setUserEmail(maskEmail(user.getEmail()));
+        }
+        
+        // 处理图片
+        if (item.getImages() != null) {
+            try {
+                List<String> imageList = JSONUtil.toList(item.getImages(), String.class);
+                dto.setImages(imageList);
+            } catch (Exception e) {
+                dto.setImages(Collections.emptyList());
+            }
+        } else {
+            dto.setImages(Collections.emptyList());
+        }
+        
+        // 获取统计信息
+        dto.setViewCount(0); // 暂时设置为0，后续可以从数据库获取实际浏览次数
+        dto.setCommentCount(getCommentCount(itemId));
+        dto.setClueCount(getClueCount(itemId));
+        
+        return dto;
+    }
+    
+    /**
+     * 手机号脱敏
+     */
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 11) {
+            return phone;
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(7);
+    }
+    
+    /**
+     * 邮箱脱敏
+     */
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return email;
+        }
+        String[] parts = email.split("@");
+        if (parts[0].length() <= 3) {
+            return email;
+        }
+        String masked = parts[0].substring(0, 2) + "***" + parts[0].substring(parts[0].length() - 1);
+        return masked + "@" + parts[1];
+    }
+    
+    /**
+     * 获取评论数量
+     */
+    private int getCommentCount(Long itemId) {
+        // 这里应该查询评论表，暂时返回模拟数据
+        return (int)(Math.random() * 20);
+    }
+    
+    /**
+     * 获取线索数量
+     */
+    private int getClueCount(Long itemId) {
+        // 这里应该查询线索表，暂时返回模拟数据
+        return (int)(Math.random() * 10);
     }
     
     @Override
@@ -186,40 +278,58 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
         
         // 核心指标
         Map<String, Object> coreMetrics = new HashMap<>();
-        coreMetrics.put("totalUsers", userService.getUserCount(null, StatusConstants.USER_ENABLED));
+        
+        // 获取总用户数
+        int totalUsers = userService.getUserCount(null, StatusConstants.USER_ENABLED);
+        coreMetrics.put("totalUsers", totalUsers);
+        
+        // 获取总物品数
+        int totalItems = baseMapper.countItems(null, null, null);
+        coreMetrics.put("totalItems", totalItems);
+        
+        // 获取已找回物品数
+        int recoveredItems = baseMapper.countItems(null, "claimed", null);
+        
+        // 计算回收率
+        double recoveryRate = totalItems > 0 ? Math.round((double) recoveredItems / totalItems * 1000) / 10.0 : 0.0;
+        coreMetrics.put("recoveryRate", recoveryRate);
+        
+        // 用户增长率和物品增长率暂使用随机值
         coreMetrics.put("userGrowth", 12.5);
-        coreMetrics.put("totalItems", baseMapper.countItems(null, null, null));
         coreMetrics.put("itemGrowth", 8.3);
-        coreMetrics.put("recoveryRate", 71.5);
         coreMetrics.put("recoveryTrend", 2.1);
-        coreMetrics.put("activeUsers", 234);
         coreMetrics.put("activityGrowth", 15.2);
+        
+        // 活跃用户数暂使用随机值
+        coreMetrics.put("activeUsers", 234);
+        
         stats.put("coreMetrics", coreMetrics);
         
-        // 分类统计
-        List<Map<String, Object>> categoryStats = new ArrayList<>();
-        String[] categories = {"证件类", "电子设备", "生活用品", "学习用品", "服装配饰", "其他"};
-        for (String category : categories) {
-            Map<String, Object> catStat = new HashMap<>();
-            catStat.put("category", category);
-            catStat.put("total", (int)(Math.random() * 50) + 10);
-            catStat.put("recovered", (int)(Math.random() * 30) + 5);
-            catStat.put("recoveryRate", 60 + (int)(Math.random() * 30));
-            catStat.put("avgRecoveryTime", 1 + (int)(Math.random() * 7));
-            categoryStats.add(catStat);
-        }
+        // 分类统计 - 使用真实数据
+        List<Map<String, Object>> categoryStats = getCategoryStatistics();
         stats.put("categoryStats", categoryStats);
         
         // 趋势数据
         Map<String, Object> trends = new HashMap<>();
         List<Map<String, Object>> dailyData = new ArrayList<>();
         for (int i = 6; i >= 0; i--) {
-            Map<String, Object> dayData = new HashMap<>();
             LocalDateTime date = LocalDateTime.now().minusDays(i);
-            dayData.put("date", date.toLocalDate().toString());
-            dayData.put("lostCount", (int)(Math.random() * 10) + 2);
-            dayData.put("foundCount", (int)(Math.random() * 8) + 1);
-            dayData.put("recoveredCount", (int)(Math.random() * 5));
+            String dateStr = date.toLocalDate().toString();
+            
+            // 获取每日失物数量
+            int lostCount = baseMapper.countItemsByDateAndType(dateStr, "lost");
+            
+            // 获取每日招领数量
+            int foundCount = baseMapper.countItemsByDateAndType(dateStr, "found");
+            
+            // 获取每日已找回数量
+            int recoveredCount = baseMapper.countRecoveredItemsByDate(dateStr);
+            
+            Map<String, Object> dayData = new HashMap<>();
+            dayData.put("date", dateStr);
+            dayData.put("lostCount", lostCount);
+            dayData.put("foundCount", foundCount);
+            dayData.put("recoveredCount", recoveredCount);
             dailyData.add(dayData);
         }
         trends.put("dailyData", dailyData);
@@ -239,19 +349,72 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
         Integer todayReviewed = reviewMapper.getTodayReviewCount(reviewerId);
         if (todayReviewed == null) todayReviewed = 0;
         
+        // 本周审核数量
+        Integer weeklyReviewed = reviewMapper.getWeeklyReviewCount(reviewerId);
+        if (weeklyReviewed == null) weeklyReviewed = 0;
+        
         // 审核统计
         Map<String, Object> reviewStats = reviewMapper.getReviewStats(reviewerId);
         int approved = ((Number) reviewStats.getOrDefault("approved", 0)).intValue();
         int rejected = ((Number) reviewStats.getOrDefault("rejected", 0)).intValue();
         
+        // 总审核数量
+        int totalReviewed = approved + rejected;
+        
+        // 计算通过率（保留一位小数）
+        double efficiency = 0.0;
+        if (totalReviewed > 0) {
+            efficiency = Math.round(((double) approved / totalReviewed) * 1000) / 10.0;
+        }
+        
+        // 每日审核趋势
+        List<Map<String, Object>> dailyTrend = reviewMapper.getDailyReviewTrend(reviewerId);
+        // 转换并计算每日通过率
+        List<Map<String, Object>> formattedTrend = new ArrayList<>();
+        for (Map<String, Object> day : dailyTrend) {
+            Map<String, Object> formattedDay = new HashMap<>(day);
+            long dayTotal = ((Number) day.getOrDefault("total", 0)).longValue();
+            long dayApproved = ((Number) day.getOrDefault("approved", 0)).longValue();
+            double approvalRate = 0.0;
+            if (dayTotal > 0) {
+                approvalRate = Math.round(((double) dayApproved / dayTotal) * 1000) / 10.0;
+            }
+            formattedDay.put("approvalRate", approvalRate);
+            formattedTrend.add(formattedDay);
+        }
+        
+        // 获取审核排名数据
+        Integer todayRank = reviewMapper.getTodayRank(reviewerId);
+        if (todayRank == null) todayRank = 1;
+        
+        Integer weeklyRank = reviewMapper.getWeeklyRank(reviewerId);
+        if (weeklyRank == null) weeklyRank = 1;
+        
+        Integer monthlyRank = reviewMapper.getMonthlyRank(reviewerId);
+        if (monthlyRank == null) monthlyRank = 1;
+        
+        // 获取本月审核数量
+        Integer monthlyReviewed = reviewMapper.getMonthlyReviewCount(reviewerId);
+        if (monthlyReviewed == null) monthlyReviewed = 0;
+        
+        // 封装排名数据
+        Map<String, Object> ranking = new HashMap<>();
+        ranking.put("today", todayRank);
+        ranking.put("todayCount", todayReviewed);
+        ranking.put("week", weeklyRank);
+        ranking.put("weekCount", weeklyReviewed);
+        ranking.put("month", monthlyRank);
+        ranking.put("monthCount", monthlyReviewed);
+        
         stats.put("pending", pending);
         stats.put("approved", approved);
         stats.put("rejected", rejected);
-        stats.put("efficiency", 85.5);
+        stats.put("efficiency", efficiency);
         stats.put("todayReviewed", todayReviewed);
-        stats.put("avgTime", 1.2);
-        stats.put("weeklyReviewed", 45);
-        stats.put("accuracy", 92.3);
+        stats.put("weeklyReviewed", weeklyReviewed);
+        stats.put("monthlyReviewed", monthlyReviewed);
+        stats.put("dailyTrend", formattedTrend);
+        stats.put("ranking", ranking);
         
         return stats;
     }
@@ -282,7 +445,7 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
             Review record = new Review();
             record.setItemId(itemId);
             record.setReviewerId(reviewerId);
-            record.setAction(StatusConstants.REVIEW_ACTION_APPROVED);
+            record.setAction(ReviewAction.valueOf(StatusConstants.REVIEW_ACTION_APPROVED));
             record.setReason(comment);
             record.setReviewTime(LocalDateTime.now());
             reviewMapper.insert(record);
@@ -311,7 +474,7 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
             Review record = new Review();
             record.setItemId(itemId);
             record.setReviewerId(reviewerId);
-            record.setAction(StatusConstants.REVIEW_ACTION_REJECTED);
+            record.setAction(ReviewAction.valueOf(StatusConstants.REVIEW_ACTION_REJECTED));
             record.setReason(reason);
             record.setReviewTime(LocalDateTime.now());
             reviewMapper.insert(record);
@@ -412,7 +575,7 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
     
     @Override
     public int getCompletedClaimsCount(Long userId) {
-        return baseMapper.countItems(null, "recovered", userId);
+        return baseMapper.countItems(null, "claimed", userId);
     }
     
     @Override
@@ -422,7 +585,7 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
     
     @Override
     public int getTotalFoundCount(Long userId) {
-        return baseMapper.countItems(null, "found", userId) + baseMapper.countItems(null, "recovered", userId);
+        return baseMapper.countItems(null, "found", userId) + baseMapper.countItems(null, "claimed", userId);
     }
     
     @Override
@@ -432,12 +595,50 @@ public class ItemServiceImpl extends ServiceImpl<ItemMapper, Item> implements It
     
     @Override
     public int getRecoveredItemCount() {
-        return baseMapper.countItems(null, "recovered", null);
+        return baseMapper.countItems(null, "claimed", null);
     }
     
     @Override
     public List<Map<String, Object>> getCategoryStatistics() {
         return baseMapper.getCategoryStatistics();
+    }
+    
+    @Override
+    public List<Map<String, Object>> getRecentLostItems(Integer limit) {
+        if (limit == null || limit <= 0) {
+            limit = 10;
+        }
+        
+        List<Map<String, Object>> recentItems = baseMapper.getRecentApprovedItems(limit);
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        // 过滤失物
+        for (Map<String, Object> item : recentItems) {
+            if ("lost".equals(item.get("type"))) {
+                result.add(item);
+            }
+        }
+        
+        return result;
+    }
+    
+    @Override
+    public List<Map<String, Object>> getRecentFoundItems(Integer limit) {
+        if (limit == null || limit <= 0) {
+            limit = 10;
+        }
+        
+        List<Map<String, Object>> recentItems = baseMapper.getRecentApprovedItems(limit);
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        // 过滤招领
+        for (Map<String, Object> item : recentItems) {
+            if ("found".equals(item.get("type"))) {
+                result.add(item);
+            }
+        }
+        
+        return result;
     }
     
     /**

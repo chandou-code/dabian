@@ -41,11 +41,9 @@
       
       <!-- 底部操作 -->
       <view class="sidebar-footer">
-        <view class="menu-item" @click="handleLogout">
-          <view class="menu-icon">
-            <text class="iconfont">退出</text>
-          </view>
+        <view class="menu-item logout-item" @click="handleLogout">
           <text v-if="!isCollapsed" class="menu-text">退出登录</text>
+          <text v-else class="menu-text-collapsed">退出</text>
         </view>
       </view>
     </view>
@@ -57,9 +55,14 @@ import { mapGetters } from 'vuex'
 
 export default {
   name: 'Sidebar',
+  props: {
+    isCollapsed: {
+      type: Boolean,
+      default: false
+    }
+  },
   data() {
     return {
-      isCollapsed: false,
       isDesktop: true,
       currentPage: ''
     }
@@ -88,25 +91,25 @@ export default {
     menuItems() {
       const menus = {
         user: [
-          { path: '/pages/user/dashboard', text: '用户中心', icon: '🏠' },
-          { path: '/pages/user/lost-found', text: '失物招领', icon: '🔍' },
-          { path: '/pages/user/publish-lost', text: '发布失物', icon: '📝' },
-          { path: '/pages/user/publish-found', text: '发布招领', icon: '✅' },
-          { path: '/pages/user/search', text: '智能搜索', icon: '🎯' },
-          { path: '/pages/user/profile', text: '个人信息', icon: '👤' }
+          { path: '/pages/user/dashboard', text: '用户中心', icon: '' },
+          { path: '/pages/user/lost-found', text: '失物招领', icon: '' },
+          { path: '/pages/user/publish-lost', text: '发布失物', icon: '' },
+          { path: '/pages/user/publish-found', text: '发布招领', icon: '' },
+          { path: '/pages/user/search', text: '文本搜索', icon: '' },
+          { path: '/pages/user/profile', text: '个人信息', icon: '' }
         ],
         admin: [
-          { path: '/pages/admin/dashboard', text: '控制台', icon: '📊' },
-          { path: '/pages/admin/user-management', text: '用户管理', icon: '👥' },
-          { path: '/pages/admin/reviewer-management', text: '审核员管理', icon: '👨‍💼' },
-          { path: '/pages/admin/statistics', text: '数据统计', icon: '📈' },
-          { path: '/pages/admin/system-settings', text: '系统设置', icon: '⚙️' }
+          { path: '/pages/admin/dashboard', text: '控制台', icon: '' },
+          { path: '/pages/admin/user-management', text: '用户管理', icon: '' },
+          { path: '/pages/admin/reviewer-management', text: '审核员管理', icon: '' },
+          { path: '/pages/admin/statistics', text: '数据统计', icon: '' },
+          { path: '/pages/admin/system-settings', text: '系统设置', icon: '' }
         ],
         reviewer: [
-          { path: '/pages/reviewer/dashboard', text: '工作台', icon: '📋' },
-          { path: '/pages/reviewer/review-lost', text: '失物审核', icon: '❌' },
-          { path: '/pages/reviewer/review-found', text: '招领审核', icon: '✅' },
-          { path: '/pages/reviewer/statistics', text: '审核统计', icon: '📊' }
+          { path: '/pages/reviewer/dashboard', text: '工作台', icon: '' },
+          { path: '/pages/reviewer/review-lost', text: '失物审核', icon: '' },
+          { path: '/pages/reviewer/review-found', text: '招领审核', icon: '' },
+          { path: '/pages/reviewer/statistics', text: '审核统计', icon: '' }
         ]
       }
       
@@ -138,23 +141,12 @@ export default {
     },
     
     toggleSidebar() {
-      this.isCollapsed = !this.isCollapsed
+      this.$emit('toggleSidebar')
     },
     
     navigateTo(path) {
-      // tabBar页面需要使用switchTab跳转
-      const tabBarPages = [
-        '/pages/index/index',
-        '/pages/user/lost-found',
-        '/pages/user/publish-lost',
-        '/pages/user/profile'
-      ]
-      
-      if (tabBarPages.includes(path)) {
-        uni.switchTab({ url: path })
-      } else {
-        uni.navigateTo({ url: path })
-      }
+      // 所有页面都使用navigateTo跳转
+      uni.navigateTo({ url: path })
       
       // 移动端点击后自动收起
       if (!this.isDesktop) {
@@ -320,6 +312,19 @@ export default {
 .sidebar-collapsed .user-details,
 .sidebar-collapsed .menu-text {
   display: none;
+}
+
+/* 退出登录按钮样式 */
+.logout-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+/* 折叠状态下的文本样式 */
+.menu-text-collapsed {
+  font-size: 12px;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .sidebar-collapsed .sidebar-header {

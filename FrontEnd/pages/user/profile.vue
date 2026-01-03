@@ -31,6 +31,8 @@
               <input v-model="userInfo.email" class="form-input" placeholder="请输入邮箱地址" />
             </view>
             
+
+            
             <view class="form-item">
               <text class="form-label">手机号</text>
               <input v-model="userInfo.phone" class="form-input" placeholder="请输入手机号" />

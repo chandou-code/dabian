@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -64,4 +65,53 @@ public interface ReviewMapper extends BaseMapper<Review> {
      */
     @Select("SELECT COUNT(*) FROM items WHERE status = 'pending'")
     Integer getPendingCount();
+    
+    /**
+     * 获取本周审核数量
+     */
+    @Select("SELECT COUNT(*) FROM reviews " +
+            "WHERE reviewer_id = #{reviewerId} " +
+            "AND DATE(review_time) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)")
+    Integer getWeeklyReviewCount(@Param("reviewerId") Long reviewerId);
+    
+    /**
+     * 获取每日审核趋势
+     */
+    @Select("SELECT "+ 
+            "DATE(review_time) as date, " +
+            "COUNT(*) as total, " +
+            "SUM(CASE WHEN action = 'approved' THEN 1 ELSE 0 END) as approved, " +
+            "SUM(CASE WHEN action = 'rejected' THEN 1 ELSE 0 END) as rejected " +
+            "FROM reviews " +
+            "WHERE reviewer_id = #{reviewerId} " +
+            "AND review_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) " +
+            "GROUP BY DATE(review_time) " +
+            "ORDER BY date")
+    List<Map<String, Object>> getDailyReviewTrend(@Param("reviewerId") Long reviewerId);
+    
+    /**
+     * 获取今日审核排名
+     */
+    @Select("SELECT COUNT(*) + 1 as review_rank FROM (SELECT reviewer_id, COUNT(*) as count FROM reviews WHERE DATE(review_time) = CURDATE() GROUP BY reviewer_id HAVING count > (SELECT COUNT(*) FROM reviews WHERE reviewer_id = #{reviewerId} AND DATE(review_time) = CURDATE())) as temp")
+    Integer getTodayRank(@Param("reviewerId") Long reviewerId);
+    
+    /**
+     * 获取本周审核排名
+     */
+    @Select("SELECT COUNT(*) + 1 as review_rank FROM (SELECT reviewer_id, COUNT(*) as count FROM reviews WHERE DATE(review_time) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY reviewer_id HAVING count > (SELECT COUNT(*) FROM reviews WHERE reviewer_id = #{reviewerId} AND DATE(review_time) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY))) as temp")
+    Integer getWeeklyRank(@Param("reviewerId") Long reviewerId);
+    
+    /**
+     * 获取本月审核排名
+     */
+    @Select("SELECT COUNT(*) + 1 as review_rank FROM (SELECT reviewer_id, COUNT(*) as count FROM reviews WHERE DATE(review_time) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY reviewer_id HAVING count > (SELECT COUNT(*) FROM reviews WHERE reviewer_id = #{reviewerId} AND DATE(review_time) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY))) as temp")
+    Integer getMonthlyRank(@Param("reviewerId") Long reviewerId);
+    
+    /**
+     * 获取本月审核数量
+     */
+    @Select("SELECT COUNT(*) FROM reviews " +
+            "WHERE reviewer_id = #{reviewerId} " +
+            "AND DATE(review_time) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)")
+    Integer getMonthlyReviewCount(@Param("reviewerId") Long reviewerId);
 }

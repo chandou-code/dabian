@@ -1,5 +1,8 @@
 <template>
   <view class="home-container">
+    <!-- 公告弹窗 -->
+    <AnnouncementPopup />
+    
     <!-- 顶部横幅 -->
     <view class="hero-section">
       <view class="hero-content">
@@ -21,19 +24,19 @@
       <view class="section-title">快速操作</view>
       <view class="action-grid">
         <view class="action-item" @click="navigateTo('/pages/user/publish-lost')">
-          <view class="action-icon">🔍</view>
+          <view class="action-icon">失</view>
           <text class="action-text">发布失物</text>
         </view>
         <view class="action-item" @click="navigateTo('/pages/user/publish-found')">
-          <view class="action-icon">✅</view>
+          <view class="action-icon">招</view>
           <text class="action-text">发布招领</text>
         </view>
         <view class="action-item" @click="navigateTo('/pages/user/lost-found')">
-          <view class="action-icon">📋</view>
+          <view class="action-icon">览</view>
           <text class="action-text">浏览信息</text>
         </view>
         <view class="action-item" @click="navigateTo('/pages/user/search')">
-          <view class="action-icon">🎯</view>
+          <view class="action-icon">搜</view>
           <text class="action-text">智能搜索</text>
         </view>
       </view>
@@ -72,7 +75,7 @@
           class="recent-item"
           @click="viewItem(item)"
         >
-          <view class="item-icon">{{ item.type === 'lost' ? '🔍' : '✅' }}</view>
+          <view class="item-icon">{{ item.type === 'lost' ? '失' : '招' }}</view>
           <view class="item-content">
             <text class="item-title">{{ item.title }}</text>
             <text class="item-desc">{{ item.description }}</text>
@@ -88,45 +91,130 @@
 </template>
 
 <script>
+import { getHomeStats, getHomeRecentItems } from '@/api/stats'
+import AnnouncementPopup from '@/components/AnnouncementPopup.vue'
+
 export default {
+  components: {
+    AnnouncementPopup
+  },
   data() {
     return {
       stats: {
-        totalLost: 1248,
-        totalFound: 956,
-        recovered: 892,
-        recoveryRate: 71.5
+        totalLost: 0,
+        totalFound: 0,
+        recovered: 0,
+        recoveryRate: 0
       },
-      recentItems: [
-        {
-          id: 1,
-          type: 'lost',
-          title: '黑色钱包',
-          description: '在图书馆二楼丢失，内有身份证和银行卡',
-          time: '2小时前',
-          status: 'pending'
-        },
-        {
-          id: 2,
-          type: 'found',
-          title: '蓝色水杯',
-          description: '在教学楼三楼卫生间发现的蓝色保温杯',
-          time: '5小时前',
-          status: 'approved'
-        },
-        {
-          id: 3,
-          type: 'lost',
-          title: ' AirPods Pro',
-          description: '黑色降噪耳机，在食堂丢失',
-          time: '1天前',
-          status: 'recovered'
-        }
-      ]
+      recentItems: [],
+      loading: false
     }
   },
   
+  onLoad() {
+    this.loadHomeData()
+  },
+  
+  onShow() {
+    // 页面显示时刷新数据
+    this.loadHomeData()
+  },
+  
   methods: {
+    // 加载首页数据
+    async loadHomeData() {
+      this.loading = true
+      try {
+        // 并行请求统计数据和最新物品
+        await Promise.all([
+          this.loadStats(),
+          this.loadRecentItems()
+        ])
+      } catch (error) {
+        console.error('加载首页数据失败:', error)
+        uni.showToast({
+          title: '加载数据失败',
+          icon: 'none'
+        })
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    // 加载统计数据
+    async loadStats() {
+      try {
+        const response = await getHomeStats()
+        if (response.code === 200 && response.data) {
+          this.stats = {
+            totalLost: response.data.totalLostItems || 0,
+            totalFound: response.data.totalFoundItems || 0,
+            recovered: response.data.completedClaims || 0,
+            recoveryRate: response.data.recoveryRate || 0
+          }
+        }
+      } catch (error) {
+        console.error('加载统计数据失败:', error)
+      }
+    },
+    
+    // 加载最新物品列表
+    async loadRecentItems() {
+      try {
+        const response = await getHomeRecentItems(10)
+        if (response.code === 200 && response.data && response.data.recentItems) {
+          this.recentItems = response.data.recentItems.map(item => {
+            return {
+              id: item.id,
+              type: item.type || 'lost',
+              title: item.title || '未知物品',
+              description: item.description || '暂无描述',
+              time: this.formatTime(item.createTime),
+              status: this.mapStatus(item.status)
+            }
+          })
+        }
+      } catch (error) {
+        console.error('加载最新物品失败:', error)
+      }
+    },
+    
+    // 格式化时间
+    formatTime(timeStr) {
+      if (!timeStr) return '未知时间'
+      
+      try {
+        const date = new Date(timeStr)
+        const now = new Date()
+        const diff = now - date
+        const hours = Math.floor(diff / (1000 * 60 * 60))
+        const days = Math.floor(hours / 24)
+        
+        if (hours < 1) {
+          return '刚刚'
+        } else if (hours < 24) {
+          return `${hours}小时前`
+        } else if (days < 7) {
+          return `${days}天前`
+        } else {
+          return date.toLocaleDateString()
+        }
+      } catch (error) {
+        return '时间格式错误'
+      }
+    },
+    
+    // 映射状态
+    mapStatus(status) {
+      const statusMap = {
+        'pending': 'pending',
+        'approved': 'approved',
+        'rejected': 'rejected',
+        'claimed': 'recovered'
+      }
+      return statusMap[status] || 'pending'
+    },
+    
     navigateTo(url) {
       uni.navigateTo({ url })
     },
@@ -138,6 +226,7 @@ export default {
         confirmText: '查看详情',
         success: (res) => {
           if (res.confirm) {
+            // 跳转到失物招领页面，同时传递类型和ID参数
             uni.navigateTo({ 
               url: `/pages/user/lost-found?type=${item.type}&id=${item.id}` 
             })
@@ -150,6 +239,7 @@ export default {
       const statusMap = {
         pending: '待审核',
         approved: '已通过',
+        rejected: '已驳回',
         recovered: '已找回'
       }
       return statusMap[status] || '待审核'

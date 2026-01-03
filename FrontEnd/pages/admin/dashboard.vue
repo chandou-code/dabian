@@ -43,21 +43,16 @@
         <view class="chart-card">
           <text class="chart-title">失物招领趋势</text>
           <view class="chart-container">
-            <!-- 这里应该集成ECharts -->
-            <view class="chart-placeholder">
-              <text>📊 ECharts图表区域</text>
-              <text class="chart-desc">显示过去30天的失物招领趋势变化</text>
-            </view>
+            <!-- ECharts图表容器 -->
+            <view id="trend-chart" class="chart" ref="trendChart"></view>
           </view>
         </view>
         
         <view class="chart-card">
           <text class="chart-title">高频丢失物品分析</text>
           <view class="chart-container">
-            <view class="chart-placeholder">
-              <text>📊 ECharts图表区域</text>
-              <text class="chart-desc">按类别统计丢失物品数量</text>
-            </view>
+            <!-- ECharts图表容器 -->
+            <view id="category-chart" class="chart" ref="categoryChart"></view>
           </view>
         </view>
       </view>
@@ -140,6 +135,7 @@
 
 <script>
 import Sidebar from '@/components/Sidebar.vue'
+import { getAdminDashboard, getAdminDashboardActivities, getAdminTrendData, getAdminCategoryData } from '@/api/system'
 
 export default {
   name: 'AdminDashboard',
@@ -151,45 +147,25 @@ export default {
     return {
       showSidebar: true,
       statistics: {
-        totalUsers: 1248,
-        totalItems: 562,
-        recoveryRate: 78,
-        pendingReviews: 23
+        totalUsers: 0,
+        totalItems: 0,
+        recoveryRate: 0,
+        pendingReviews: 0
       },
-      recentActivities: [
-        {
-          id: 1,
-          type: 'user',
-          icon: '👤',
-          title: '新用户注册',
-          description: '用户张三完成注册，需要审核',
-          time: '5分钟前'
-        },
-        {
-          id: 2,
-          type: 'review',
-          icon: '📋',
-          title: '失物信息待审核',
-          description: '用户提交了新的失物信息，等待审核',
-          time: '15分钟前'
-        },
-        {
-          id: 3,
-          type: 'system',
-          icon: '⚠️',
-          title: '系统警告',
-          description: '服务器存储空间使用率超过70%',
-          time: '1小时前'
-        },
-        {
-          id: 4,
-          type: 'success',
-          icon: '🎉',
-          title: '物品找回成功',
-          description: '用户李四成功找回丢失的手机',
-          time: '2小时前'
-        }
-      ]
+      recentActivities: [],
+      // 图表数据
+      trendData: {
+        labels: [],
+        lostData: [],
+        foundData: []
+      },
+      categoryData: {
+        categories: [],
+        counts: []
+      },
+      // 图表实例
+      trendChart: null,
+      categoryChart: null
     }
   },
   
@@ -197,10 +173,268 @@ export default {
     this.loadDashboardData()
   },
   
+  onShow() {
+    // 页面显示时重新初始化图表，确保DOM元素已渲染
+    this.$nextTick(() => {
+      this.initTrendChart()
+      this.initCategoryChart()
+    })
+  },
+  
   methods: {
-    loadDashboardData() {
-      // 实际项目中这里会调用API获取数据
-      console.log('加载管理员控制台数据...')
+    async loadDashboardData() {
+      try {
+        console.log('加载管理员控制台数据...')
+        // 并行请求仪表板数据、最新动态和图表数据
+        const [dashboardResponse, activitiesResponse, trendResponse, categoryResponse] = await Promise.all([
+          getAdminDashboard(),
+          getAdminDashboardActivities(),
+          getAdminTrendData(),
+          getAdminCategoryData()
+        ])
+        
+        // 更新统计数据
+        if (dashboardResponse.success && dashboardResponse.data) {
+          console.log('获取到的仪表板数据:', dashboardResponse.data)
+          this.statistics = {
+            totalUsers: dashboardResponse.data.totalUsers || 0,
+            totalItems: dashboardResponse.data.totalItems || 0,
+            recoveryRate: dashboardResponse.data.recoveryRate || 0,
+            pendingReviews: dashboardResponse.data.pendingReviews || 0
+          }
+        }
+        
+        // 更新最新动态
+        if (activitiesResponse.success && activitiesResponse.data) {
+          console.log('获取到的最新动态:', activitiesResponse.data)
+          this.recentActivities = activitiesResponse.data
+        }
+        
+        // 更新趋势图表数据
+        if (trendResponse.success && trendResponse.data) {
+          console.log('获取到的趋势数据:', trendResponse.data)
+          // 处理后端返回的趋势数据格式
+          const trendData = trendResponse.data.trendData || []
+          this.trendData = {
+            labels: trendData.map(item => item.date),
+            lostData: trendData.map(item => item.lostCount),
+            foundData: trendData.map(item => item.foundCount)
+          }
+          this.initTrendChart()
+        }
+        
+        // 更新类别图表数据
+        if (categoryResponse.success && categoryResponse.data) {
+          console.log('获取到的类别数据:', categoryResponse.data)
+          // 处理后端返回的类别数据格式
+          const categories = categoryResponse.data.categories || []
+          this.categoryData = {
+            categories: categories.map(item => item.category),
+            counts: categories.map(item => item.total)
+          }
+          this.initCategoryChart()
+        }
+      } catch (error) {
+        console.error('加载管理员控制台数据失败:', error)
+        uni.showToast({
+          title: '加载数据失败',
+          icon: 'none'
+        })
+      }
+    },
+    
+    // 初始化趋势图表
+    initTrendChart() {
+      console.log('初始化趋势图表:', this.trendData)
+      
+      // 获取Canvas上下文
+      const chartElement = document.getElementById('trend-chart')
+      if (!chartElement) return
+      
+      // 创建Canvas元素
+      let canvas = chartElement.querySelector('canvas')
+      if (!canvas) {
+        canvas = document.createElement('canvas')
+        chartElement.innerHTML = ''
+        chartElement.appendChild(canvas)
+      }
+      
+      // 确保Canvas尺寸正确，使用设备像素比
+      const dpr = window.devicePixelRatio || 1
+      const rect = chartElement.getBoundingClientRect()
+      
+      // 设置Canvas的实际像素大小
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      
+      // 设置Canvas的CSS大小
+      canvas.style.width = rect.width + 'px'
+      canvas.style.height = rect.height + 'px'
+      
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      
+      // 清空画布
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      // 缩放上下文以匹配设备像素比
+      ctx.scale(dpr, dpr)
+      
+      // 绘制趋势图
+      this.drawTrendChart(ctx, rect.width, rect.height)
+    },
+    
+    // 绘制趋势图
+    drawTrendChart(ctx, width, height) {
+      const { labels, lostData, foundData } = this.trendData
+      if (labels.length === 0) return
+      
+      const padding = 40
+      const chartWidth = width - 2 * padding
+      const chartHeight = height - 2 * padding
+      
+      // 计算数据的最大值
+      const maxData = Math.max(...lostData, ...foundData)
+      
+      // 绘制坐标轴
+      ctx.beginPath()
+      ctx.moveTo(padding, padding)
+      ctx.lineTo(padding, height - padding)
+      ctx.lineTo(width - padding, height - padding)
+      ctx.strokeStyle = '#ccc'
+      ctx.stroke()
+      
+      // 绘制失物数据折线
+      ctx.beginPath()
+      for (let i = 0; i < labels.length; i++) {
+        const x = padding + (i / (labels.length - 1)) * chartWidth
+        const y = height - padding - (lostData[i] / maxData) * chartHeight
+        if (i === 0) {
+          ctx.moveTo(x, y)
+        } else {
+          ctx.lineTo(x, y)
+        }
+      }
+      ctx.strokeStyle = '#f44336'
+      ctx.lineWidth = 2
+      ctx.stroke()
+      
+      // 绘制招领数据折线
+      ctx.beginPath()
+      for (let i = 0; i < labels.length; i++) {
+        const x = padding + (i / (labels.length - 1)) * chartWidth
+        const y = height - padding - (foundData[i] / maxData) * chartHeight
+        if (i === 0) {
+          ctx.moveTo(x, y)
+        } else {
+          ctx.lineTo(x, y)
+        }
+      }
+      ctx.strokeStyle = '#4caf50'
+      ctx.lineWidth = 2
+      ctx.stroke()
+      
+      // 绘制图例
+      ctx.fillStyle = '#f44336'
+      ctx.fillRect(padding, padding - 20, 10, 10)
+      ctx.fillStyle = '#333'
+      ctx.font = '12px sans-serif'
+      ctx.fillText('失物', padding + 15, padding - 8)
+      
+      ctx.fillStyle = '#4caf50'
+      ctx.fillRect(padding + 80, padding - 20, 10, 10)
+      ctx.fillStyle = '#333'
+      ctx.font = '12px sans-serif'
+      ctx.fillText('招领', padding + 95, padding - 8)
+    },
+    
+    // 初始化类别图表
+    initCategoryChart() {
+      console.log('初始化类别图表:', this.categoryData)
+      
+      // 获取Canvas上下文
+      const chartElement = document.getElementById('category-chart')
+      if (!chartElement) return
+      
+      // 创建Canvas元素
+      let canvas = chartElement.querySelector('canvas')
+      if (!canvas) {
+        canvas = document.createElement('canvas')
+        chartElement.innerHTML = ''
+        chartElement.appendChild(canvas)
+      }
+      
+      // 确保Canvas尺寸正确，使用设备像素比
+      const dpr = window.devicePixelRatio || 1
+      const rect = chartElement.getBoundingClientRect()
+      
+      // 设置Canvas的实际像素大小
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      
+      // 设置Canvas的CSS大小
+      canvas.style.width = rect.width + 'px'
+      canvas.style.height = rect.height + 'px'
+      
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      
+      // 清空画布
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      // 缩放上下文以匹配设备像素比
+      ctx.scale(dpr, dpr)
+      
+      // 绘制类别图
+      this.drawCategoryChart(ctx, rect.width, rect.height)
+    },
+    
+    // 绘制类别图
+    drawCategoryChart(ctx, width, height) {
+      const { categories, counts } = this.categoryData
+      if (categories.length === 0) return
+      
+      // 调整半径大小，避免超出容器
+      const centerX = width / 2
+      const centerY = height / 2
+      const radius = Math.min(width, height) / 4 // 减小半径，避免溢出
+      
+      // 计算总和
+      const total = counts.reduce((sum, count) => sum + count, 0)
+      if (total === 0) return
+      
+      // 绘制饼图
+      let startAngle = -Math.PI / 2
+      for (let i = 0; i < categories.length; i++) {
+        const count = counts[i]
+        const percentage = count / total
+        const endAngle = startAngle + 2 * Math.PI * percentage
+        
+        // 绘制扇形
+        ctx.beginPath()
+        ctx.moveTo(centerX, centerY)
+        ctx.arc(centerX, centerY, radius, startAngle, endAngle)
+        ctx.closePath()
+        
+        // 随机颜色
+        const color = `hsl(${i * 360 / categories.length}, 70%, 60%)`
+        ctx.fillStyle = color
+        ctx.fill()
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 2
+        ctx.stroke()
+        
+        // 绘制图例
+        const legendX = 20
+        const legendY = 20 + i * 25
+        ctx.fillStyle = color
+        ctx.fillRect(legendX, legendY, 15, 15)
+        ctx.fillStyle = '#333'
+        ctx.font = '12px sans-serif'
+        ctx.fillText(`${categories[i]}: ${count}`, legendX + 25, legendY + 12)
+        
+        startAngle = endAngle
+      }
     },
     
     navigateTo(url) {
@@ -329,6 +563,13 @@ export default {
 
 .chart-container {
   height: 300rpx;
+}
+
+.chart {
+  height: 100%;
+  width: 100%;
+  background: #f8f9fa;
+  border-radius: 8rpx;
 }
 
 .chart-placeholder {

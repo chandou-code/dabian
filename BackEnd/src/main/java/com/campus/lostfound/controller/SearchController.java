@@ -16,7 +16,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/search")
+@RequestMapping("/search")
 @CrossOrigin
 public class SearchController {
     

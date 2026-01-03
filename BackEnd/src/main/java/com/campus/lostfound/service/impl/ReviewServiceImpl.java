@@ -1,12 +1,14 @@
-package com.campus.lostfound.service;
+package com.campus.lostfound.service.impl;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.lostfound.entity.Item;
 import com.campus.lostfound.entity.Review;
+import com.campus.lostfound.enums.ReviewAction;
 import com.campus.lostfound.mapper.ItemMapper;
 import com.campus.lostfound.mapper.ReviewMapper;
+import com.campus.lostfound.service.IReviewService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,7 +23,7 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-public class ReviewService extends ServiceImpl<ReviewMapper, Review> {
+public class ReviewServiceImpl extends ServiceImpl<ReviewMapper, Review> implements IReviewService {
 
     @Autowired
     private ReviewMapper reviewMapper;
@@ -32,7 +34,8 @@ public class ReviewService extends ServiceImpl<ReviewMapper, Review> {
     /**
      * 审核物品
      */
-    public Map<String, Object> reviewItem(Long itemId, String status, String reason, String action, Long reviewerId) {
+    @Override
+    public Map<String, Object> reviewItem(Long itemId, String status, String reason, ReviewAction action, Long reviewerId) {
         // 查询物品信息
         Item item = itemMapper.selectById(itemId);
         if (item == null) {
@@ -69,13 +72,14 @@ public class ReviewService extends ServiceImpl<ReviewMapper, Review> {
     /**
      * 批量审核
      */
-    public Map<String, Object> batchReview(List<Long> itemIds, String status, String reason, String type, Long reviewerId) {
+    @Override
+    public Map<String, Object> batchReview(Long[] itemIds, String status, String reason, ReviewAction action, Long reviewerId) {
         int successCount = 0;
         int failCount = 0;
         
         for (Long itemId : itemIds) {
             try {
-                reviewItem(itemId, status, reason, type, reviewerId);
+                reviewItem(itemId, status, reason, action, reviewerId);
                 successCount++;
             } catch (Exception e) {
                 log.error("批量审核失败，物品ID: {}", itemId, e);
@@ -84,7 +88,7 @@ public class ReviewService extends ServiceImpl<ReviewMapper, Review> {
         }
         
         Map<String, Object> result = new HashMap<>();
-        result.put("totalCount", itemIds.size());
+        result.put("totalCount", itemIds.length);
         result.put("successCount", successCount);
         result.put("failCount", failCount);
         
@@ -94,6 +98,7 @@ public class ReviewService extends ServiceImpl<ReviewMapper, Review> {
     /**
      * 获取待审核数量
      */
+    @Override
     public Long getPendingCount() {
         Integer count = reviewMapper.getPendingCount();
         return count != null ? count.longValue() : 0L;
@@ -102,6 +107,7 @@ public class ReviewService extends ServiceImpl<ReviewMapper, Review> {
     /**
      * 获取审核历史
      */
+    @Override
     public IPage<Map<String, Object>> getReviewHistory(int current, int pageSize, String type, String status, Long reviewerId) {
         Page<Review> page = new Page<>(current, pageSize);
         return reviewMapper.getReviewHistory(page, type, status, reviewerId);
@@ -110,6 +116,7 @@ public class ReviewService extends ServiceImpl<ReviewMapper, Review> {
     /**
      * 获取审核统计
      */
+    @Override
     public Map<String, Object> getReviewStats(Long reviewerId) {
         Map<String, Object> stats = reviewMapper.getReviewStats(reviewerId);
         if (stats == null) {

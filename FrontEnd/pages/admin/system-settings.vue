@@ -4,88 +4,6 @@
     
     <view class="main-content" :class="{ 'main-content-expanded': !showSidebar }">
       <view class="settings-container">
-        <!-- 系统参数配置 -->
-        <view class="settings-section">
-          <text class="section-title">系统参数配置</text>
-          
-          <view class="setting-item">
-            <text class="setting-label">系统名称</text>
-            <input v-model="systemConfig.systemName" class="setting-input" />
-          </view>
-          
-          <view class="setting-item">
-            <text class="setting-label">系统描述</text>
-            <textarea v-model="systemConfig.description" class="setting-textarea"></textarea>
-          </view>
-          
-          <view class="setting-item">
-            <text class="setting-label">版本号</text>
-            <input v-model="systemConfig.version" class="setting-input" />
-          </view>
-          
-          <view class="setting-item">
-            <text class="setting-label">维护模式</text>
-            <switch :checked="systemConfig.maintenanceMode" @change="toggleMaintenance" />
-          </view>
-        </view>
-        
-        <!-- 邮件通知模板 -->
-        <view class="settings-section">
-          <text class="section-title">邮件通知模板</text>
-          
-          <view class="template-item">
-            <text class="template-title">审核通过通知</text>
-            <textarea v-model="emailTemplates.approval" class="template-content" placeholder="邮件内容模板..."></textarea>
-            <button class="preview-btn" @click="previewTemplate('approval')">预览</button>
-          </view>
-          
-          <view class="template-item">
-            <text class="template-title">审核驳回通知</text>
-            <textarea v-model="emailTemplates.rejection" class="template-content" placeholder="邮件内容模板..."></textarea>
-            <button class="preview-btn" @click="previewTemplate('rejection')">预览</button>
-          </view>
-          
-          <view class="template-item">
-            <text class="template-title">找回物品通知</text>
-            <textarea v-model="emailTemplates.recovery" class="template-content" placeholder="邮件内容模板..."></textarea>
-            <button class="preview-btn" @click="previewTemplate('recovery')">预览</button>
-          </view>
-        </view>
-        
-        <!-- AI接口配置 -->
-        <view class="settings-section">
-          <text class="section-title">AI接口配置</text>
-          
-          <view class="setting-item">
-            <text class="setting-label">AI识别API地址</text>
-            <input v-model="aiConfig.apiUrl" class="setting-input" placeholder="https://api.example.com/recognize" />
-          </view>
-          
-          <view class="setting-item">
-            <text class="setting-label">API密钥</text>
-            <input v-model="aiConfig.apiKey" type="password" class="setting-input" placeholder="请输入API密钥" />
-          </view>
-          
-          <view class="setting-item">
-            <text class="setting-label">AI描述生成</text>
-            <switch :checked="aiConfig.enabled" @change="toggleAI" />
-          </view>
-          
-          <view class="setting-item">
-            <text class="setting-label">识别准确率阈值</text>
-            <slider 
-              :value="aiConfig.threshold" 
-              @change="onThresholdChange"
-              min="0"
-              max="100"
-              show-value
-              class="setting-slider"
-            />
-          </view>
-          
-          <button class="test-btn" @click="testAIConfig">测试AI接口</button>
-        </view>
-        
         <!-- 公告管理 -->
         <view class="settings-section">
           <text class="section-title">公告管理</text>
@@ -136,11 +54,6 @@
             </view>
           </view>
         </view>
-        
-        <!-- 保存按钮 -->
-        <view class="save-section">
-          <button class="save-btn" @click="saveSettings">保存所有设置</button>
-        </view>
       </view>
     </view>
   </view>
@@ -148,6 +61,7 @@
 
 <script>
 import Sidebar from '@/components/Sidebar.vue'
+import { getAnnouncements, publishAnnouncement, updateAnnouncement, deleteAnnouncement } from '@/api/announcement'
 
 export default {
   name: 'SystemSettings',
@@ -161,115 +75,47 @@ export default {
       announcementTypeIndex: 0,
       announcementTypes: ['系统公告', '活动通知', '维护通知', '其他'],
       
-      systemConfig: {
-        systemName: '校园失物招领系统',
-        description: '让失物回家，让爱心传递',
-        version: '1.0.0',
-        maintenanceMode: false
-      },
-      
-      emailTemplates: {
-        approval: '您好，您发布的信息已通过审核，感谢您的支持！',
-        rejection: '您好，很遗憾您发布的信息未通过审核，请检查后重新提交。',
-        recovery: '您好，恭喜您找回丢失的物品，记得给好心人点赞哦！'
-      },
-      
-      aiConfig: {
-        apiUrl: 'https://api.example.com/recognize',
-        apiKey: '',
-        enabled: true,
-        threshold: 80
-      },
-      
       newAnnouncement: {
         title: '',
         content: '',
         type: '系统公告'
       },
       
-      announcements: [
-        {
-          id: 1,
-          title: '系统升级通知',
-          content: '系统将于今晚22:00进行升级维护，预计2小时完成。',
-          time: '2024-01-15 10:30'
-        },
-        {
-          id: 2,
-          title: '使用指南更新',
-          content: '新增AI智能识别功能，欢迎使用！',
-          time: '2024-01-14 15:20'
-        }
-      ]
+      announcements: []
     }
   },
   
   onLoad() {
-    this.loadSettings()
+    this.loadAnnouncements()
   },
   
   methods: {
-    loadSettings() {
-      // 实际项目中从API加载配置
-      console.log('加载系统设置...')
+    // 加载公告列表
+    async loadAnnouncements() {
+      try {
+        uni.showLoading({ title: '加载中...' })
+        const response = await getAnnouncements()
+        if (response.success) {
+          this.announcements = response.data || []
+        } else {
+          uni.showToast({ title: '加载失败', icon: 'none' })
+        }
+      } catch (error) {
+        console.error('加载公告失败:', error)
+        uni.showToast({ title: '加载失败', icon: 'none' })
+      } finally {
+        uni.hideLoading()
+      }
     },
     
-    toggleMaintenance(e) {
-      this.systemConfig.maintenanceMode = e.detail.value
-    },
-    
-    toggleAI(e) {
-      this.aiConfig.enabled = e.detail.value
-    },
-    
-    onThresholdChange(e) {
-      this.aiConfig.threshold = e.detail.value
-    },
-    
+    // 公告类型变更
     onAnnouncementTypeChange(e) {
       this.announcementTypeIndex = e.detail.value
       this.newAnnouncement.type = this.announcementTypes[this.announcementTypeIndex]
     },
     
-    previewTemplate(type) {
-      const content = this.emailTemplates[type]
-      uni.showModal({
-        title: '模板预览',
-        content: content || '模板内容为空',
-        showCancel: false
-      })
-    },
-    
-    async testAIConfig() {
-      if (!this.aiConfig.apiUrl) {
-        uni.showToast({
-          title: '请先配置API地址',
-          icon: 'none'
-        })
-        return
-      }
-      
-      uni.showLoading({ title: '测试中...' })
-      
-      try {
-        // 模拟API测试
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        uni.hideLoading()
-        uni.showToast({
-          title: 'AI接口测试成功',
-          icon: 'success'
-        })
-      } catch (error) {
-        uni.hideLoading()
-        uni.showToast({
-          title: 'AI接口测试失败',
-          icon: 'none'
-        })
-      }
-    },
-    
-    publishAnnouncement() {
+    // 发布公告
+    async publishAnnouncement() {
       if (!this.newAnnouncement.title || !this.newAnnouncement.content) {
         uni.showToast({
           title: '请填写完整公告信息',
@@ -278,79 +124,93 @@ export default {
         return
       }
       
-      const announcement = {
-        id: Date.now(),
-        ...this.newAnnouncement,
-        time: new Date().toLocaleString()
-      }
-      
-      this.announcements.unshift(announcement)
-      
-      // 清空表单
-      this.newAnnouncement = {
-        title: '',
-        content: '',
-        type: '系统公告'
-      }
-      
-      uni.showToast({
-        title: '公告发布成功',
-        icon: 'success'
-      })
-    },
-    
-    editAnnouncement(announcement) {
-      uni.showModal({
-        title: '编辑公告',
-        content: announcement.content,
-        editable: true,
-        success: (res) => {
-          if (res.confirm) {
-            announcement.content = res.content
-            uni.showToast({
-              title: '公告修改成功',
-              icon: 'success'
-            })
-          }
-        }
-      })
-    },
-    
-    deleteAnnouncement(announcement) {
-      uni.showModal({
-        title: '确认删除',
-        content: `确定要删除公告"${announcement.title}"吗？`,
-        success: (res) => {
-          if (res.confirm) {
-            const index = this.announcements.findIndex(a => a.id === announcement.id)
-            this.announcements.splice(index, 1)
-            uni.showToast({
-              title: '公告删除成功',
-              icon: 'success'
-            })
-          }
-        }
-      })
-    },
-    
-    async saveSettings() {
-      uni.showLoading({ title: '保存中...' })
-      
       try {
-        // 模拟API请求
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        
-        uni.hideLoading()
-        uni.showToast({
-          title: '设置保存成功',
-          icon: 'success'
-        })
+        uni.showLoading({ title: '发布中...' })
+        const response = await publishAnnouncement(this.newAnnouncement)
+        if (response.success) {
+          // 重新加载公告列表
+          await this.loadAnnouncements()
+          
+          // 清空表单
+          this.newAnnouncement = {
+            title: '',
+            content: '',
+            type: '系统公告'
+          }
+          this.announcementTypeIndex = 0
+          
+          uni.showToast({
+            title: '公告发布成功',
+            icon: 'success'
+          })
+        } else {
+          uni.showToast({ title: response.message || '发布失败', icon: 'none' })
+        }
       } catch (error) {
+        console.error('发布公告失败:', error)
+        uni.showToast({ title: '发布失败', icon: 'none' })
+      } finally {
         uni.hideLoading()
-        uni.showToast({
-          title: '保存失败',
-          icon: 'none'
+      }
+    },
+    
+    // 编辑公告
+    async editAnnouncement(announcement) {
+      try {
+        const res = await uni.showModal({
+          title: '编辑公告',
+          content: announcement.content,
+          editable: true
         })
+        
+        if (res.confirm) {
+          uni.showLoading({ title: '修改中...' })
+          const response = await updateAnnouncement(announcement.id, {
+            ...announcement,
+            content: res.content
+          })
+          
+          if (response.success) {
+            // 重新加载公告列表
+            await this.loadAnnouncements()
+            uni.showToast({ title: '公告修改成功', icon: 'success' })
+          } else {
+            uni.showToast({ title: response.message || '修改失败', icon: 'none' })
+          }
+        }
+      } catch (error) {
+        console.error('编辑公告失败:', error)
+        uni.showToast({ title: '修改失败', icon: 'none' })
+      } finally {
+        uni.hideLoading()
+      }
+    },
+    
+    // 删除公告
+    async deleteAnnouncement(announcement) {
+      try {
+        const res = await uni.showModal({
+          title: '确认删除',
+          content: `确定要删除公告"${announcement.title}"吗？`
+        })
+        
+        if (res.confirm) {
+          uni.showLoading({ title: '删除中...' })
+          const response = await deleteAnnouncement(announcement.id)
+          
+          if (response.success) {
+            // 重新加载公告列表
+            await this.loadAnnouncements()
+            uni.showToast({ title: '公告删除成功', icon: 'success' })
+          } else {
+            uni.showToast({ title: response.message || '删除失败', icon: 'none' })
+          }
+        }
+      } catch (error) {
+        console.error('删除公告失败:', error)
+        uni.showToast({ title: '删除失败', icon: 'none' })
+      } finally {
+        uni.hideLoading()
       }
     }
   }

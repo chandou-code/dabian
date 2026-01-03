@@ -13,9 +13,11 @@ const store = new Vuex.Store({
   
   mutations: {
     SET_USER(state, user) {
+      console.log('SET_USER mutation被调用，用户信息:', user)
       state.user = user
       state.isLoggedIn = true
-      state.userRole = user.role
+      state.userRole = user ? user.role : null
+      console.log('设置用户角色:', state.userRole)
     },
     
     SET_TOKEN(state, token) {
@@ -47,9 +49,11 @@ const store = new Vuex.Store({
   
   actions: {
     login({ commit }, { user, token }) {
+      console.log('store login action被调用:', { user, token })
       commit('SET_USER', user)
       commit('SET_TOKEN', token)
       uni.setStorageSync('user', user)
+      console.log('用户信息和token已保存到storage')
     },
     
     logout({ commit }) {

@@ -47,7 +47,6 @@
       <!-- 核心指标 -->
       <view class="core-metrics">
         <view class="metric-card primary">
-          <view class="metric-icon reviewed-icon">📋</view>
           <view class="metric-content">
             <text class="metric-number">{{ coreMetrics.totalReviewed }}</text>
             <text class="metric-label">总审核数</text>
@@ -56,7 +55,6 @@
         </view>
         
         <view class="metric-card success">
-          <view class="metric-icon approved-icon">✅</view>
           <view class="metric-content">
             <text class="metric-number">{{ coreMetrics.approved }}</text>
             <text class="metric-label">通过数</text>
@@ -65,20 +63,10 @@
         </view>
         
         <view class="metric-card warning">
-          <view class="metric-icon rejected-icon">❌</view>
           <view class="metric-content">
             <text class="metric-number">{{ coreMetrics.rejected }}</text>
             <text class="metric-label">驳回数</text>
             <text class="metric-trend negative">{{ coreMetrics.rejectionRate }}%</text>
-          </view>
-        </view>
-        
-        <view class="metric-card info">
-          <view class="metric-icon efficiency-icon">⏱️</view>
-          <view class="metric-content">
-            <text class="metric-number">{{ coreMetrics.avgTime }}分钟</text>
-            <text class="metric-label">平均处理时间</text>
-            <text class="metric-trend positive">-{{ coreMetrics.timeImprovement }}%</text>
           </view>
         </view>
       </view>
@@ -91,10 +79,12 @@
             <button class="chart-btn" @click="exportChart('trend')">导出</button>
           </view>
           <view class="chart-container">
-            <view class="chart-placeholder">
-              <text>📈 ECharts图表区域</text>
-              <text class="chart-desc">显示审核数量的日/周/月趋势变化</text>
-            </view>
+            <canvas 
+              id="trendChart" 
+              class="chart-canvas" 
+              canvas-id="trendChart"
+              style="width: 100%; height: 210rpx;"
+            ></canvas>
           </view>
         </view>
         
@@ -104,36 +94,12 @@
             <button class="chart-btn" @click="exportChart('approval')">导出</button>
           </view>
           <view class="chart-container">
-            <view class="chart-placeholder">
-              <text>📊 ECharts图表区域</text>
-              <text class="chart-desc">显示通过率的变化趋势</text>
-            </view>
-          </view>
-        </view>
-        
-        <view class="chart-card">
-          <view class="chart-header">
-            <text class="chart-title">处理效率分析</text>
-            <button class="chart-btn" @click="exportChart('efficiency')">导出</button>
-          </view>
-          <view class="chart-container">
-            <view class="chart-placeholder">
-              <text>⏰ ECharts图表区域</text>
-              <text class="chart-desc">显示平均处理时间分布</text>
-            </view>
-          </view>
-        </view>
-        
-        <view class="chart-card">
-          <view class="chart-header">
-            <text class="chart-title">工作量对比</text>
-            <button class="chart-btn" @click="exportChart('workload')">导出</button>
-          </view>
-          <view class="chart-container">
-            <view class="chart-placeholder">
-              <text>👥 ECharts图表区域</text>
-              <text class="chart-desc">与其他审核员的工作量对比</text>
-            </view>
+            <canvas 
+              id="approvalRateChart" 
+              class="chart-canvas" 
+              canvas-id="approvalRateChart"
+              style="width: 100%; height: 210rpx;"
+            ></canvas>
           </view>
         </view>
       </view>
@@ -147,26 +113,24 @@
         
         <view class="table-content">
           <view class="table-row table-head">
-            <view class="table-cell">日期</view>
-            <view class="table-cell">审核总数</view>
-            <view class="table-cell">通过数</view>
-            <view class="table-cell">驳回数</view>
-            <view class="table-cell">通过率</view>
-            <view class="table-cell">平均时间</view>
-          </view>
-          
-          <view 
-            v-for="record in dailyStats" 
-            :key="record.date" 
-            class="table-row table-body"
-          >
-            <view class="table-cell date-cell">{{ record.date }}</view>
-            <view class="table-cell">{{ record.total }}</view>
-            <view class="table-cell">{{ record.approved }}</view>
-            <view class="table-cell">{{ record.rejected }}</view>
-            <view class="table-cell approval-rate">{{ record.approvalRate }}%</view>
-            <view class="table-cell">{{ record.avgTime }}分钟</view>
-          </view>
+          <view class="table-cell">日期</view>
+          <view class="table-cell">审核总数</view>
+          <view class="table-cell">通过数</view>
+          <view class="table-cell">驳回数</view>
+          <view class="table-cell">通过率</view>
+        </view>
+        
+        <view 
+          v-for="record in dailyStats" 
+          :key="record.date" 
+          class="table-row table-body"
+        >
+          <view class="table-cell date-cell">{{ record.date }}</view>
+          <view class="table-cell">{{ record.total }}</view>
+          <view class="table-cell">{{ record.approved }}</view>
+          <view class="table-cell">{{ record.rejected }}</view>
+          <view class="table-cell approval-rate">{{ record.approvalRate }}%</view>
+        </view>
         </view>
       </view>
       
@@ -206,6 +170,7 @@
 
 <script>
 import Sidebar from '@/components/Sidebar.vue'
+import { getReviewerDashboard } from '@/api/review'
 
 export default {
   name: 'ReviewerStatistics',
@@ -223,25 +188,15 @@ export default {
       timeRanges: ['今天', '最近7天', '最近30天', '最近3个月', '全部时间'],
       
       coreMetrics: {
-        totalReviewed: 156,
-        todayReviewed: 12,
-        approved: 142,
-        approvalRate: 91.0,
-        rejected: 14,
-        rejectionRate: 9.0,
-        avgTime: 3.5,
-        timeImprovement: 15.2
+        totalReviewed: 0,
+        todayReviewed: 0,
+        approved: 0,
+        approvalRate: 0,
+        rejected: 0,
+        rejectionRate: 0
       },
       
-      dailyStats: [
-        { date: '2024-01-15', total: 18, approved: 16, rejected: 2, approvalRate: 88.9, avgTime: 3.2 },
-        { date: '2024-01-14', total: 22, approved: 20, rejected: 2, approvalRate: 90.9, avgTime: 3.8 },
-        { date: '2024-01-13', total: 15, approved: 14, rejected: 1, approvalRate: 93.3, avgTime: 4.1 },
-        { date: '2024-01-12', total: 25, approved: 23, rejected: 2, approvalRate: 92.0, avgTime: 3.5 },
-        { date: '2024-01-11', total: 20, approved: 18, rejected: 2, approvalRate: 90.0, avgTime: 3.9 },
-        { date: '2024-01-10', total: 19, approved: 17, rejected: 2, approvalRate: 89.5, avgTime: 3.6 },
-        { date: '2024-01-09', total: 21, approved: 19, rejected: 2, approvalRate: 90.5, avgTime: 3.3 }
-      ],
+      dailyStats: [],
       
       currentRanking: {
         today: 2,
@@ -250,6 +205,19 @@ export default {
         weekCount: 89,
         month: 4,
         monthCount: 156
+      },
+      
+      // 图表数据
+      trendChartData: {
+        dates: [],
+        total: [],
+        approved: [],
+        rejected: []
+      },
+      
+      approvalRateData: {
+        dates: [],
+        approvalRates: []
       }
     }
   },
@@ -257,6 +225,14 @@ export default {
   onLoad() {
     this.initDateRange()
     this.loadStatistics()
+  },
+  
+  // 在页面显示时重新绘制图表
+  onShow() {
+    this.$nextTick(() => {
+      this.drawTrendChart()
+      this.drawApprovalRateChart()
+    })
   },
   
   methods: {
@@ -318,31 +294,296 @@ export default {
     
     async loadStatistics() {
       try {
-        // 模拟API请求
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // 从真实API获取数据
+        const response = await getReviewerDashboard()
         
         // 更新统计数据
-        this.updateMetrics()
+        const stats = response.data
+        
+        // 计算通过率和驳回率
+        const totalReviewed = stats.approved + stats.rejected
+        const approvalRate = totalReviewed > 0 ? (stats.approved / totalReviewed * 100).toFixed(1) : 0
+        const rejectionRate = totalReviewed > 0 ? (stats.rejected / totalReviewed * 100).toFixed(1) : 0
+        
+        // 更新核心指标
+        this.coreMetrics = {
+          totalReviewed,
+          todayReviewed: stats.todayReviewed,
+          approved: stats.approved,
+          approvalRate,
+          rejected: stats.rejected,
+          rejectionRate,
+        }
+        
+        // 更新每日统计数据
+        this.dailyStats = stats.dailyTrend || []
+        
+        // 更新业绩排名数据
+        this.currentRanking = stats.ranking || {
+          today: 1,
+          todayCount: 0,
+          week: 1,
+          weekCount: 0,
+          month: 1,
+          monthCount: 0
+        }
+        
+        // 更新图表数据
+        this.updateChartData()
         
       } catch (error) {
         uni.showToast({
-          title: '数据加载失败',
+          title: '数据加载失败: ' + (error.message || '未知错误'),
           icon: 'none'
         })
       }
     },
     
-    updateMetrics() {
-      // 模拟数据更新
-      const randomGrowth = () => (Math.random() * 10 - 5).toFixed(1)
+    updateChartData() {
+      // 提取图表数据
+      const dates = this.dailyStats.map(item => item.date)
+      const total = this.dailyStats.map(item => item.total)
+      const approved = this.dailyStats.map(item => item.approved)
+      const rejected = this.dailyStats.map(item => item.rejected)
+      const approvalRates = this.dailyStats.map(item => item.approvalRate)
       
-      this.coreMetrics = {
-        ...this.coreMetrics,
-        todayReviewed: Math.floor(Math.random() * 20) + 5,
-        approvalRate: parseFloat((Math.random() * 20 + 80).toFixed(1)),
-        rejectionRate: parseFloat((Math.random() * 20 + 5).toFixed(1)),
-        avgTime: parseFloat((Math.random() * 5 + 2).toFixed(1)),
-        timeImprovement: parseFloat(Math.abs(randomGrowth()))
+      // 更新趋势图表数据
+      this.trendChartData = {
+        dates,
+        total,
+        approved,
+        rejected
+      }
+      
+      // 更新通过率图表数据
+      this.approvalRateData = {
+        dates,
+        approvalRates
+      }
+      
+      // 在下一个渲染周期绘制图表
+      this.$nextTick(() => {
+        this.drawTrendChart()
+        this.drawApprovalRateChart()
+      })
+    },
+    
+    drawTrendChart() {
+      // 使用uni-app的canvas API
+      const ctx = uni.createCanvasContext('trendChart', this)
+      
+      // 获取系统信息
+      const sysInfo = uni.getSystemInfoSync()
+      const screenWidth = sysInfo.screenWidth
+      const width = screenWidth - 80 // 减去左右边距
+      const height = 150 // 降低canvas高度，避免偏高
+      
+      // 数据准备
+      const { dates, total, approved, rejected } = this.trendChartData
+      if (dates.length === 0) {
+        // 绘制无数据提示
+        ctx.setFillStyle('#ffffff')
+        ctx.fillRect(0, 0, width, height)
+        ctx.setFillStyle('#999999')
+        ctx.setFontSize(14)
+        ctx.setTextAlign('center')
+        ctx.fillText('暂无数据', width / 2, height / 2)
+        ctx.draw()
+        return
+      }
+      
+      // 计算最大值
+      const maxValue = Math.max(...total, 10)
+      
+      // 绘制背景
+      ctx.setFillStyle('#ffffff')
+      ctx.fillRect(0, 0, width, height)
+      
+      // 绘制网格线
+      ctx.setStrokeStyle('#f0f0f0')
+      ctx.setLineWidth(1)
+      for (let i = 0; i <= 5; i++) {
+        const y = height - (height / 5) * i
+        ctx.beginPath()
+        ctx.moveTo(50, y)
+        ctx.lineTo(width - 20, y)
+        ctx.stroke()
+      }
+      
+      // 绘制X轴标签
+      ctx.setFillStyle('#666666')
+      ctx.setFontSize(12)
+      ctx.setTextAlign('center')
+      const labelStep = Math.ceil(dates.length / 6)
+      for (let i = 0; i < dates.length; i += labelStep) {
+        const x = 50 + (width - 70) * (i / (dates.length - 1))
+        ctx.fillText(dates[i].substr(5), x, height - 5)
+      }
+      
+      // 绘制Y轴标签
+      ctx.setTextAlign('right')
+      for (let i = 0; i <= 5; i++) {
+        const value = Math.round(maxValue * (i / 5))
+        const y = height - (height / 5) * i + 5
+        ctx.fillText(value.toString(), 40, y)
+      }
+      
+      // 绘制总审核数折线
+      this.drawLine(ctx, total, maxValue, '#2196f3', width, height)
+      
+      // 绘制通过数折线
+      this.drawLine(ctx, approved, maxValue, '#4caf50', width, height)
+      
+      // 绘制驳回数折线
+      this.drawLine(ctx, rejected, maxValue, '#ff9800', width, height)
+      
+      // 绘制图例
+      this.drawLegend(ctx, [
+        { name: '总审核', color: '#2196f3' },
+        { name: '通过', color: '#4caf50' },
+        { name: '驳回', color: '#ff9800' }
+      ], width)
+      
+      // 绘制
+      ctx.draw()
+    },
+    
+    drawApprovalRateChart() {
+      // 使用uni-app的canvas API
+      const ctx = uni.createCanvasContext('approvalRateChart', this)
+      
+      // 获取系统信息
+      const sysInfo = uni.getSystemInfoSync()
+      const screenWidth = sysInfo.screenWidth
+      const width = screenWidth - 80 // 减去左右边距
+      const height = 150 // 降低canvas高度，避免偏高
+      
+      // 数据准备
+      const { dates, approvalRates } = this.approvalRateData
+      if (dates.length === 0) {
+        // 绘制无数据提示
+        ctx.setFillStyle('#ffffff')
+        ctx.fillRect(0, 0, width, height)
+        ctx.setFillStyle('#999999')
+        ctx.setFontSize(14)
+        ctx.setTextAlign('center')
+        ctx.fillText('暂无数据', width / 2, height / 2)
+        ctx.draw()
+        return
+      }
+      
+      // 绘制背景
+      ctx.setFillStyle('#ffffff')
+      ctx.fillRect(0, 0, width, height)
+      
+      // 绘制网格线
+      ctx.setStrokeStyle('#f0f0f0')
+      ctx.setLineWidth(1)
+      for (let i = 0; i <= 5; i++) {
+        const y = height - (height / 5) * i
+        ctx.beginPath()
+        ctx.moveTo(50, y)
+        ctx.lineTo(width - 20, y)
+        ctx.stroke()
+      }
+      
+      // 绘制X轴标签
+      ctx.setFillStyle('#666666')
+      ctx.setFontSize(12)
+      ctx.setTextAlign('center')
+      const labelStep = Math.ceil(dates.length / 6)
+      for (let i = 0; i < dates.length; i += labelStep) {
+        const x = 50 + (width - 70) * (i / (dates.length - 1))
+        ctx.fillText(dates[i].substr(5), x, height - 5)
+      }
+      
+      // 绘制Y轴标签 (通过率0-100%)
+      ctx.setTextAlign('right')
+      for (let i = 0; i <= 5; i++) {
+        const value = i * 20
+        const y = height - (height / 5) * i + 5
+        ctx.fillText(value + '%', 40, y)
+      }
+      
+      // 绘制通过率折线
+      this.drawLine(ctx, approvalRates, 100, '#4caf50', width, height)
+      
+      // 绘制通过率柱状图
+      this.drawBarChart(ctx, approvalRates, 100, '#4caf50', width, height)
+      
+      // 绘制图例
+      this.drawLegend(ctx, [
+        { name: '通过率', color: '#4caf50' }
+      ], width)
+      
+      // 绘制
+      ctx.draw()
+    },
+    
+    drawLine(ctx, data, maxValue, color, width, height) {
+      ctx.setStrokeStyle(color)
+      ctx.setLineWidth(2)
+      ctx.beginPath()
+      
+      for (let i = 0; i < data.length; i++) {
+        const x = 50 + (width - 70) * (i / (data.length - 1))
+        const y = height - (height / maxValue) * data[i] - 20
+        
+        if (i === 0) {
+          ctx.moveTo(x, y)
+        } else {
+          ctx.lineTo(x, y)
+        }
+      }
+      
+      ctx.stroke()
+      
+      // 绘制数据点
+      ctx.setFillStyle(color)
+      for (let i = 0; i < data.length; i++) {
+        const x = 50 + (width - 70) * (i / (data.length - 1))
+        const y = height - (height / maxValue) * data[i] - 20
+        ctx.beginPath()
+        ctx.arc(x, y, 3, 0, 2 * Math.PI)
+        ctx.fill()
+      }
+    },
+    
+    drawBarChart(ctx, data, maxValue, color, width, height) {
+      const barWidth = (width - 70) / data.length * 0.6
+      
+      for (let i = 0; i < data.length; i++) {
+        const x = 50 + (width - 70) * (i / (data.length - 1)) - barWidth / 2
+        const barHeight = (height / maxValue) * data[i]
+        const y = height - barHeight - 20
+        
+        ctx.setFillStyle(color)
+        ctx.fillRect(x, y, barWidth, barHeight)
+      }
+    },
+    
+    drawLegend(ctx, legends, width) {
+      ctx.setFillStyle('#666666')
+      ctx.setFontSize(12)
+      ctx.setTextAlign('left')
+      
+      // 从右侧开始绘制图例
+      let x = width - 20 - legends.length * 100
+      const y = 10
+      
+      for (let i = 0; i < legends.length; i++) {
+        const legend = legends[i]
+        
+        // 绘制颜色块
+        ctx.setFillStyle(legend.color)
+        ctx.fillRect(x, y, 10, 10)
+        
+        // 绘制文字
+        ctx.setFillStyle('#666666')
+        ctx.fillText(legend.name, x + 15, y + 8)
+        
+        // 移动到下一个图例位置
+        x += 100
       }
     },
     
@@ -557,8 +798,26 @@ export default {
 }
 
 .chart-container {
-  height: 300rpx;
+  height: 250rpx; /* 降低容器高度 */
   padding: 20rpx;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* 针对uni-canvas组件的样式调整 */
+.uni-canvas {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 210rpx; /* 降低canvas高度 */
+  background: #f8f9fa;
+  border-radius: 8rpx;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .chart-placeholder {
@@ -622,7 +881,7 @@ export default {
 
 .table-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
   align-items: center;
   padding: 20rpx 30rpx;
   border-bottom: 1rpx solid #f0f0f0;

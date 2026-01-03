@@ -14,8 +14,6 @@
           />
           <button class="search-btn" @click="handleSearch">🔍</button>
         </view>
-        
-        <button class="add-btn" @click="showAddReviewerModal">添加审核员</button>
       </view>
       
       <!-- 审核员列表 -->
@@ -125,11 +123,133 @@
         </button>
       </view>
     </view>
+    
+    <!-- 编辑审核员模态框 -->
+    <view v-if="showEditModal" class="modal-overlay" @click.self="closeEditModal">
+      <view class="modal-container">
+        <view class="modal-header">
+          <text class="modal-title">编辑审核员</text>
+          <text class="modal-close" @click="closeEditModal">×</text>
+        </view>
+        
+        <view class="modal-content">
+          <view class="form-item">
+            <text class="form-label">用户名</text>
+            <input 
+              v-model="editForm.username" 
+              class="form-input" 
+              placeholder="请输入用户名"
+            />
+          </view>
+          
+          <view class="form-item">
+            <text class="form-label">真实姓名</text>
+            <input 
+              v-model="editForm.realName" 
+              class="form-input" 
+              placeholder="请输入真实姓名"
+            />
+          </view>
+          
+          <view class="form-item">
+            <text class="form-label">邮箱</text>
+            <input 
+              v-model="editForm.email" 
+              class="form-input" 
+              placeholder="请输入邮箱"
+              type="email"
+            />
+          </view>
+          
+          <view class="form-item">
+            <text class="form-label">手机号</text>
+            <input 
+              v-model="editForm.phone" 
+              class="form-input" 
+              placeholder="请输入手机号"
+              type="number"
+            />
+          </view>
+          
+          <view class="form-item">
+            <text class="form-label">学院</text>
+            <input 
+              v-model="editForm.college" 
+              class="form-input" 
+              placeholder="请输入学院"
+            />
+          </view>
+          
+          <view class="form-item">
+            <text class="form-label">年级</text>
+            <input 
+              v-model="editForm.grade" 
+              class="form-input" 
+              placeholder="请输入年级（如：2022级）"
+            />
+          </view>
+          
+          <view class="form-item">
+            <text class="form-label">专业</text>
+            <input 
+              v-model="editForm.major" 
+              class="form-input" 
+              placeholder="请输入专业"
+            />
+          </view>
+          
+          <view class="form-item">
+            <text class="form-label">性别</text>
+            <picker 
+              v-model="editForm.gender" 
+              :range="['男', '女']" 
+              class="form-picker"
+            >
+              <view class="picker-content">{{ editForm.gender === 1 ? '男' : '女' }}</view>
+            </picker>
+          </view>
+          
+          <view class="form-item">
+            <text class="form-label">角色</text>
+            <view class="role-selector">
+              <button 
+                v-for="roleOption in roleOptions" 
+                :key="roleOption.value"
+                :class="['role-btn', { 'active': editForm.role === roleOption.value }]"
+                @click="editForm.role = roleOption.value"
+              >
+                {{ roleOption.label }}
+              </button>
+            </view>
+          </view>
+          
+          <view class="form-item">
+            <text class="form-label">状态</text>
+            <picker 
+              v-model="editForm.status" 
+              :range="['active', 'inactive']" 
+              class="form-picker"
+            >
+              <view class="picker-content">{{ getStatusText(editForm.status) }}</view>
+            </picker>
+          </view>
+        </view>
+        
+        <view class="modal-footer">
+          <button class="btn-cancel" @click="closeEditModal">取消</button>
+          <button class="btn-confirm" @click="saveReviewerChanges" :disabled="isSaving">
+            {{ isSaving ? '保存中...' : '保存' }}
+          </button>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
 <script>
 import Sidebar from '@/components/Sidebar.vue'
+import { getReviewers } from '@/api/system.js'
+import { updateUserInfo } from '@/api/user.js'
 
 export default {
   name: 'ReviewerManagement',
@@ -144,7 +264,30 @@ export default {
       searchKeyword: '',
       currentPage: 1,
       pageSize: 6,
-      reviewers: []
+      reviewers: [],
+      
+      // 编辑审核员相关
+      showEditModal: false,
+      editForm: {
+        id: '',
+        username: '',
+        realName: '',
+        email: '',
+        phone: '',
+        college: '',
+        grade: '',
+        major: '',
+        gender: 1,
+        role: 'reviewer',
+        status: 'active'
+      },
+      isSaving: false,
+      // 角色选项
+      roleOptions: [
+        { value: 'user', label: '普通用户' },
+        { value: 'reviewer', label: '审核员' },
+        { value: 'admin', label: '管理员' }
+      ]
     }
   },
   
@@ -199,49 +342,31 @@ export default {
       this.loading = true
       
       try {
-        // 模拟API请求
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        this.reviewers = this.generateMockReviewers()
+        const response = await getReviewers()
+        // 后端返回的数据结构是 { data: { list: [], total: number } }
+        const reviewersData = response.data || { list: [], total: 0 }
+        // 将后端返回的realName映射为前端需要的name，status转换为字符串格式
+        this.reviewers = reviewersData.list.map(item => ({
+          ...item,
+          name: item.realName || item.name,
+          status: item.status === 1 ? 'active' : 'inactive',
+          joinTime: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '未知',
+          // 初始化统计数据，后续可以从审核历史中计算
+          totalReviewed: item.totalReviewed || 0,
+          approved: item.approved || 0,
+          rejected: item.rejected || 0,
+          approvalRate: item.approvalRate || 0
+        }))
         
       } catch (error) {
         uni.showToast({
           title: '加载失败',
           icon: 'none'
         })
+        console.error('加载审核员列表失败:', error)
       } finally {
         this.loading = false
       }
-    },
-    
-    generateMockReviewers() {
-      const statuses = ['active', 'inactive']
-      const names = ['张审核', '李审核', '王审核', '刘审核', '陈审核', '杨审核', '赵审核', '钱审核']
-      const mockReviewers = []
-      
-      for (let i = 1; i <= 15; i++) {
-        const status = statuses[Math.floor(Math.random() * statuses.length)]
-        const totalReviewed = Math.floor(Math.random() * 200) + 50
-        const approved = Math.floor(totalReviewed * (Math.random() * 0.3 + 0.7)) // 70%-100%通过率
-        const rejected = totalReviewed - approved
-        
-        mockReviewers.push({
-          id: i,
-          name: names[i % names.length] + i,
-          username: `reviewer${i}`,
-          email: `reviewer${i}@example.com`,
-          phone: `139${String(i).padStart(8, '0')}`,
-          status,
-          avatar: '/static/default-avatar.png',
-          joinTime: `${Math.floor(Math.random() * 365) + 1}天前`,
-          totalReviewed,
-          approved,
-          rejected,
-          approvalRate: Math.round((approved / totalReviewed) * 100)
-        })
-      }
-      
-      return mockReviewers
     },
     
     handleSearch() {
@@ -262,33 +387,127 @@ export default {
       return statusMap[status] || '未知'
     },
     
-    showAddReviewerModal() {
-      uni.showToast({
-        title: '功能开发中',
-        icon: 'none'
-      })
+    getRoleText(role) {
+      const roleMap = {
+        admin: '管理员',
+        reviewer: '审核员',
+        user: '普通用户'
+      }
+      return roleMap[role] || '未知'
     },
     
     editReviewer(reviewer) {
-      uni.showModal({
-        title: '编辑审核员',
-        content: `编辑审核员：${reviewer.name}`,
-        showCancel: false
-      })
+      // 填充编辑表单
+      this.editForm = {
+        ...reviewer,
+        // 确保gender是数字类型
+        gender: parseInt(reviewer.gender) || 1,
+        // 确保role是字符串类型
+        role: reviewer.role || 'reviewer'
+      }
+      // 显示模态框
+      this.showEditModal = true
+    },
+    
+    closeEditModal() {
+      // 隐藏模态框
+      this.showEditModal = false
+      // 重置表单
+      this.resetEditForm()
+    },
+    
+    resetEditForm() {
+      this.editForm = {
+        id: '',
+        username: '',
+        realName: '',
+        email: '',
+        phone: '',
+        college: '',
+        grade: '',
+        major: '',
+        gender: 1,
+        role: 'reviewer',
+        status: 'active'
+      }
+      this.isSaving = false
+    },
+    
+    async saveReviewerChanges() {
+      // 基本验证
+      if (!this.editForm.username.trim()) {
+        uni.showToast({
+          title: '用户名不能为空',
+          icon: 'none'
+        })
+        return
+      }
+      
+      if (!this.editForm.email.trim()) {
+        uni.showToast({
+          title: '邮箱不能为空',
+          icon: 'none'
+        })
+        return
+      }
+      
+      this.isSaving = true
+      
+      try {
+        // 调用API更新审核员信息
+        const response = await updateUserInfo(this.editForm.id, this.editForm)
+        
+        if (response.success) {
+          uni.showToast({
+            title: '保存成功',
+            icon: 'success'
+          })
+          
+          // 关闭模态框
+          this.closeEditModal()
+          
+          // 重新加载审核员列表
+          this.loadReviewers()
+        } else {
+          uni.showToast({
+            title: '保存失败: ' + (response.message || '未知错误'),
+            icon: 'none'
+          })
+        }
+      } catch (error) {
+        uni.showToast({
+          title: '保存失败: ' + error.message,
+          icon: 'none'
+        })
+      } finally {
+        this.isSaving = false
+      }
     },
     
     toggleReviewerStatus(reviewer) {
       const action = reviewer.status === 'active' ? '禁用' : '启用'
+      const newStatus = reviewer.status === 'active' ? 'inactive' : 'active'
+      
       uni.showModal({
         title: `确认${action}`,
         content: `确定要${action}审核员 ${reviewer.name} 吗？`,
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm) {
-            reviewer.status = reviewer.status === 'active' ? 'inactive' : 'active'
-            uni.showToast({
-              title: `${action}成功`,
-              icon: 'success'
-            })
+            try {
+              // 调用API更新审核员状态
+              // 这里需要替换为实际的更新审核员状态API
+              // 更新本地审核员状态
+              reviewer.status = newStatus
+              uni.showToast({
+                title: `${action}成功`,
+                icon: 'success'
+              })
+            } catch (error) {
+              uni.showToast({
+                title: `${action}失败`,
+                icon: 'none'
+              })
+            }
           }
         }
       })
@@ -597,6 +816,191 @@ export default {
   background: #2196f3;
   color: white;
   border-color: #2196f3;
+}
+
+/* 降级按钮样式 */
+.demote-btn {
+  background: #f44336;
+  color: white;
+}
+
+/* 模态框遮罩层 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* 模态框样式 */
+.modal-container {
+  background: white;
+  border-radius: 16rpx;
+  width: 90%;
+  max-width: 600rpx;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.15);
+  animation: modalFadeIn 0.3s ease-out;
+  position: relative;
+  z-index: 1001;
+}
+
+/* 模态框头部 */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 32rpx;
+  border-bottom: 2rpx solid #f0f0f0;
+}
+
+/* 模态框标题 */
+.modal-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 模态框关闭按钮 */
+.modal-close {
+  font-size: 48rpx;
+  color: #999;
+  cursor: pointer;
+  line-height: 1;
+}
+
+/* 模态框内容 */
+.modal-content {
+  padding: 32rpx;
+}
+
+/* 确认文本 */
+.confirm-text {
+  font-size: 28rpx;
+  color: #333;
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* 表单项 */
+.form-item {
+  margin-bottom: 32rpx;
+}
+
+/* 表单标签 */
+.form-label {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 12rpx;
+}
+
+/* 表单输入框 */
+.form-input, .form-picker {
+  width: 100%;
+  height: 76rpx;
+  padding: 0 20rpx;
+  border: 2rpx solid #e0e0e0;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+/* 选择器内容 */
+.picker-content {
+  line-height: 72rpx;
+  color: #333;
+}
+
+/* 模态框底部 */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 20rpx;
+  padding: 24rpx 32rpx;
+  border-top: 2rpx solid #f0f0f0;
+}
+
+/* 取消按钮 */
+.btn-cancel {
+  background: white;
+  color: #666;
+  border: 2rpx solid #e0e0e0;
+  height: 72rpx;
+  padding: 0 40rpx;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+/* 确认按钮 */
+.btn-confirm {
+  background: #2196f3;
+  color: white;
+  border: none;
+  height: 72rpx;
+  padding: 0 40rpx;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+/* 禁用状态 */
+.btn-confirm:disabled {
+  opacity: 0.5;
+}
+
+/* 模态框动画 */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 角色选择器样式 */
+.role-selector {
+  display: flex;
+  gap: 10rpx;
+  flex-wrap: wrap;
+  margin-top: 10rpx;
+}
+
+.role-btn {
+  flex: 1;
+  min-width: 120rpx;
+  height: 60rpx;
+  background: #f5f5f5;
+  color: #666;
+  border: 2rpx solid #e0e0e0;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  transition: all 0.3s ease;
+}
+
+.role-btn.active {
+  background: #2196f3;
+  color: white;
+  border-color: #2196f3;
+}
+
+.role-btn:hover {
+  background: #e3f2fd;
+  border-color: #2196f3;
+}
+
+.role-btn.active:hover {
+  background: #1976d2;
 }
 
 /* 响应式设计 */

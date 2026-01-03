@@ -1,0 +1,17 @@
+### 测试首页API接口
+
+### 1. 测试首页统计数据
+GET http://localhost:18080/api/home
+Accept: application/json
+
+### 2. 测试首页最新物品列表
+GET http://localhost:18080/api/home/recent?limit=10
+Accept: application/json
+
+### 3. 测试后端健康检查
+GET http://localhost:18080/api/
+Accept: application/json
+
+### 4. 测试API信息
+GET http://localhost:18080/api/info
+Accept: application/json

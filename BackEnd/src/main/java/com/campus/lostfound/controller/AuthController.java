@@ -37,9 +37,13 @@ public class AuthController {
             String password = loginData.get("password");
             String clientIp = getClientIpAddress(null);
             
+            log.info("登录请求 - 用户名: {}, 密码长度: {}, 客户端IP: {}", username, password != null ? password.length() : 0, clientIp);
+            
             User user = userService.login(username, password, clientIp);
             
             if (user != null) {
+                log.info("登录成功 - 用户ID: {}, 用户名: {}, 角色: {}", user.getId(), user.getUsername(), user.getRole());
+                
                 // 生成JWT Token
                 String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
                 
@@ -66,10 +70,11 @@ public class AuthController {
                 
                 return Result.success("登录成功", response);
             } else {
+                log.warn("登录失败 - 用户名或密码错误: {}", username);
                 return Result.error("用户名或密码错误");
             }
         } catch (Exception e) {
-            log.error("登录失败", e);
+            log.error("登录异常", e);
             return Result.error("登录失败：" + e.getMessage());
         }
     }

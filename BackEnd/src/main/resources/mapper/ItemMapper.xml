@@ -36,11 +36,11 @@
     <select id="selectPendingItems" resultType="com.campus.lostfound.entity.Item">
         SELECT * FROM items 
         WHERE deleted = 0
-        <if test="type != null and type != '' and type != 'all'">
-            AND type = #{type}
-        </if>
         <if test="status != null and status != ''">
             AND status = #{status}
+        </if>
+        <if test="type != null and type != '' and type != 'all'">
+            AND type = #{type}
         </if>
         <if test="keyword != null and keyword != ''">
             AND (item_name LIKE CONCAT('%', #{keyword}, '%') 
@@ -117,7 +117,7 @@
             DATE(created_at) as date,
             SUM(CASE WHEN type = 'lost' THEN 1 ELSE 0 END) as lostCount,
             SUM(CASE WHEN type = 'found' THEN 1 ELSE 0 END) as foundCount,
-            SUM(CASE WHEN status = 'recovered' THEN 1 ELSE 0 END) as recoveredCount
+            SUM(CASE WHEN status = 'claimed' THEN 1 ELSE 0 END) as recoveredCount
         FROM items 
         WHERE deleted = 0
         <if test="startDate != null">
@@ -135,26 +135,17 @@
         SELECT 
             category,
             COUNT(*) as total,
-            SUM(CASE WHEN status = 'recovered' OR status = 'found' THEN 1 ELSE 0 END) as recovered,
+            SUM(CASE WHEN status = 'claimed' THEN 1 ELSE 0 END) as recovered,
             ROUND(
-                SUM(CASE WHEN status = 'recovered' OR status = 'found' THEN 1 ELSE 0 END) * 100.0 / 
+                SUM(CASE WHEN status = 'claimed' THEN 1 ELSE 0 END) * 100.0 / 
                 NULLIF(COUNT(*), 0), 
                 1
             ) as recoveryRate,
             ROUND(
                 AVG(
                     CASE 
-                        WHEN status IN ('recovered', 'found') AND created_at IS NOT NULL 
-                        THEN DATEDIFF(
-                            COALESCE(
-                                CASE 
-                                    WHEN status = 'recovered' THEN updated_at 
-                                    ELSE created_at 
-                                END, 
-                                created_at
-                            ), 
-                            0
-                        ) 
+                        WHEN status = 'claimed' AND created_at IS NOT NULL AND updated_at IS NOT NULL 
+                        THEN DATEDIFF(updated_at, created_at)
                         ELSE NULL 
                     END
                 ), 
@@ -217,6 +208,14 @@
         LIMIT #{limit}
     </select>
     
+    <!-- 获取用户发布的所有物品 -->
+    <select id="selectUserItems" resultType="com.campus.lostfound.entity.Item">
+        SELECT i.*
+        FROM items i
+        WHERE i.submitter_id = #{userId} AND i.deleted = 0
+        ORDER BY i.created_at DESC
+    </select>
+    
     <!-- 获取推荐匹配物品 -->
     <select id="selectRecommendedMatches" resultType="com.campus.lostfound.entity.Item">
         SELECT DISTINCT i.*,
@@ -263,6 +262,58 @@
             SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending
         FROM items 
         WHERE submitter_id = #{userId} AND deleted = 0
+    </select>
+    
+    <!-- 获取全局失物数量 -->
+    <select id="getGlobalLostCount" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE type = 'lost' AND deleted = 0
+    </select>
+    
+    <!-- 获取全局招领数量 -->
+    <select id="getGlobalFoundCount" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE type = 'found' AND deleted = 0
+    </select>
+    
+    <!-- 获取全局已找回物品数量 -->
+    <select id="getGlobalRecoveredCount" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE status = 'claimed' AND deleted = 0
+    </select>
+    
+    <!-- 获取最新已审核物品列表 -->
+    <select id="getRecentApprovedItems" resultType="map">
+        SELECT 
+            id,
+            item_name as title,
+            description,
+            type,
+            status,
+            category,
+            location,
+            created_at as createTime,
+            event_time as eventTime
+        FROM items 
+        WHERE status IN ('approved', 'claimed') AND deleted = 0
+        ORDER BY created_at DESC 
+        LIMIT #{limit}
+    </select>
+
+    <!-- 根据日期和类型统计物品数量 -->
+    <select id="countItemsByDateAndType" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE deleted = 0 
+        AND DATE(created_at) = #{date}
+        AND type = #{type}
+    </select>
+    
+    <!-- 根据日期统计已找回物品数量 -->
+    <select id="countRecoveredItemsByDate" resultType="int">
+        SELECT COUNT(*) FROM items 
+        WHERE deleted = 0 
+        AND DATE(created_at) = #{date}
+        AND status = 'claimed'
     </select>
 
 </mapper>

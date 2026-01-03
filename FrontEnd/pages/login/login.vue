@@ -70,7 +70,7 @@
     
     <!-- 版权信息 -->
     <view class="copyright">
-      <text>© 2024 校园失物招领系统</text>
+      <text>© 校园失物招领系统</text>
     </view>
   </view>
 </template>
@@ -151,11 +151,24 @@ export default {
         // 调用真实登录API
         const response = await apiLogin(this.loginForm)
         
-        // 登录成功，保存用户信息和token
-        this.login({
-          user: response.user,
-          token: response.token
-        })
+        console.log('登录响应:', response)
+        
+        // 检查响应数据结构
+        if (response.code === 200 && response.data) {
+          const { user, token } = response.data
+          
+          if (!user || !user.role) {
+            throw new Error('用户信息不完整，缺少role字段')
+          }
+          
+          // 登录成功，保存用户信息和token
+          this.login({
+            user: user,
+            token: token
+          })
+        } else {
+          throw new Error(response.message || '登录失败')
+        }
         
         uni.showToast({
           title: '登录成功',
@@ -200,7 +213,18 @@ export default {
     },
     
     redirectToDashboard() {
+      console.log('准备跳转到仪表板，当前用户角色:', this.$store.getters.userRole)
+      
       const role = this.$store.getters.userRole
+      if (!role) {
+        console.error('用户角色为空，无法跳转')
+        uni.showToast({
+          title: '用户角色获取失败',
+          icon: 'none'
+        })
+        return
+      }
+      
       let route = '/pages/user/dashboard'
       
       if (role === 'admin') {
@@ -209,6 +233,7 @@ export default {
         route = '/pages/reviewer/dashboard'
       }
       
+      console.log('跳转到页面:', route)
       uni.reLaunch({ url: route })
     },
     

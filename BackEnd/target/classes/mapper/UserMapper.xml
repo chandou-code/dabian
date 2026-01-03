@@ -38,4 +38,18 @@
         </if>
     </select>
 
+    <select id="getUserCount" resultType="long">
+        SELECT COUNT(*) FROM users 
+        WHERE deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (username LIKE CONCAT('%', #{keyword}, '%') 
+                 OR real_name LIKE CONCAT('%', #{keyword}, '%') 
+                 OR email LIKE CONCAT('%', #{keyword}, '%') 
+                 OR phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+    </select>
+
 </mapper>

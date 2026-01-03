@@ -1,6 +1,6 @@
 <template>
   <view class="review-found">
-    <Sidebar />
+    <Sidebar :isCollapsed="!showSidebar" @toggleSidebar="showSidebar = !showSidebar" />
     
     <view class="main-content" :class="{ 'main-content-expanded': !showSidebar }">
       <!-- 操作栏 -->
@@ -85,7 +85,7 @@
               
               <view class="item-content">
                 <view class="content-header">
-                  <text class="item-title">{{ item.title }}</text>
+                  <text class="item-title">{{ item.itemName }}</text>
                   <text class="item-time">{{ item.submitTime }}</text>
                 </view>
                 
@@ -106,10 +106,10 @@
               </view>
               
               <view class="item-actions">
-                <button class="action-btn approve-btn" @click="approveItem(item)">
+                <button v-if="item.status === 'pending'" class="action-btn approve-btn" @click="approveItem(item)">
                   ✅ 通过
                 </button>
-                <button class="action-btn reject-btn" @click="rejectItem(item)">
+                <button v-if="item.status === 'pending'" class="action-btn reject-btn" @click="rejectItem(item)">
                   ❌ 驳回
                 </button>
                 <button class="action-btn detail-btn" @click="viewDetail(item)">
@@ -197,6 +197,7 @@
 
 <script>
 import Sidebar from '@/components/Sidebar.vue'
+import { getPendingReviews, reviewItem, batchReview } from '@/api/review'
 
 export default {
   name: 'ReviewFound',
@@ -211,14 +212,16 @@ export default {
       searchKeyword: '',
       selectedItems: [],
       currentPage: 1,
-      pageSize: 5,
+      pageSize: 20,
       statusIndex: 0,
       timeIndex: 0,
       
       statusFilters: ['全部状态', '待审核', '已通过', '已驳回'],
       timeFilters: ['全部时间', '今天', '最近3天', '最近7天', '最近30天'],
       
-      reviewItems: []
+      reviewItems: [],
+      totalItems: 0,
+      totalPages: 0
     }
   },
   
@@ -239,7 +242,7 @@ export default {
       if (this.searchKeyword) {
         const keyword = this.searchKeyword.toLowerCase()
         filtered = filtered.filter(item => 
-          item.title.toLowerCase().includes(keyword) ||
+          item.itemName.toLowerCase().includes(keyword) ||
           item.description.toLowerCase().includes(keyword) ||
           item.location.toLowerCase().includes(keyword)
         )
@@ -248,14 +251,8 @@ export default {
       return filtered
     },
     
-    totalPages() {
-      return Math.ceil(this.filteredItems.length / this.pageSize)
-    },
-    
     paginatedItems() {
-      const start = (this.currentPage - 1) * this.pageSize
-      const end = start + this.pageSize
-      return this.filteredItems.slice(start, end)
+      return this.filteredItems
     },
     
     visiblePages() {
@@ -281,14 +278,54 @@ export default {
   },
   
   methods: {
+    formatTime(timestamp) {
+      if (!timestamp) return ''
+      const date = new Date(timestamp)
+      const now = new Date()
+      const diff = now - date
+      
+      const seconds = Math.floor(diff / 1000)
+      const minutes = Math.floor(seconds / 60)
+      const hours = Math.floor(minutes / 60)
+      const days = Math.floor(hours / 24)
+      
+      if (days > 0) {
+        return `${days}天前`
+      } else if (hours > 0) {
+        return `${hours}小时前`
+      } else if (minutes > 0) {
+        return `${minutes}分钟前`
+      } else {
+        return '刚刚'
+      }
+    },
+    
     async loadReviewItems() {
       this.loading = true
       
       try {
-        // 模拟API请求
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // 构建状态参数
+        let status = '' // 空字符串表示查询所有状态
+        if (this.statusIndex === 1) {
+          status = 'pending'
+        } else if (this.statusIndex === 2) {
+          status = 'approved'
+        } else if (this.statusIndex === 3) {
+          status = 'rejected'
+        }
         
-        this.reviewItems = this.generateMockItems()
+        const response = await getPendingReviews({
+          current: this.currentPage,
+          pageSize: this.pageSize,
+          type: 'found',
+          status,
+          keyword: this.searchKeyword
+        })
+        
+        // request.js已经处理了response.code的判断，只有成功才会resolve
+        this.reviewItems = response.data.items
+        this.totalItems = response.data.pagination.total
+        this.totalPages = response.data.pagination.pages
         
       } catch (error) {
         uni.showToast({
@@ -300,74 +337,28 @@ export default {
       }
     },
     
-    generateMockItems() {
-      const statuses = ['pending', 'approved', 'rejected']
-      const finderNames = ['张三', '李四', '王五', '赵六', '钱七']
-      const mockItems = []
-      
-      for (let i = 1; i <= 20; i++) {
-        const status = statuses[Math.floor(Math.random() * statuses.length)]
-        const item = {
-          id: i,
-          title: `捡到的物品 ${i}`,
-          description: '详细描述捡到物品的特征、状态、位置等信息...',
-          location: `图书馆${Math.floor(Math.random() * 3) + 1}楼`,
-          foundTime: `${Math.floor(Math.random() * 7) + 1}天前`,
-          finder: finderNames[i % finderNames.length],
-          contact: `139${String(i).padStart(8, '0')}`,
-          submitTime: `${Math.floor(Math.random() * 24)}小时前`,
-          status,
-          image: Math.random() > 0.3 ? '/static/found-item.jpg' : null,
-          pickupLocation: Math.random() > 0.5 ? `学生事务中心${Math.floor(Math.random() * 3) + 1}号窗口` : null,
-          reviewHistory: [],
-          matches: []
-        }
-        
-        // 添加审核历史
-        if (status !== 'pending') {
-          item.reviewHistory = [{
-            id: 1,
-            action: status === 'approved' ? '通过' : '驳回',
-            reviewer: '审核员A',
-            time: `${Math.floor(Math.random() * 12)}小时前`,
-            comment: status === 'approved' ? '信息完整，符合要求' : '信息不完整，需要补充'
-          }]
-        }
-        
-        // 添加匹配建议（随机）
-        if (Math.random() > 0.6) {
-          item.matches = [{
-            id: i * 100,
-            title: `疑似匹配的失物 ${i}`,
-            description: '丢失物品描述信息...',
-            time: `${Math.floor(Math.random() * 10) + 1}天前`,
-            score: Math.floor(Math.random() * 30) + 70 // 70-99%匹配度
-          }]
-        }
-        
-        mockItems.push(item)
-      }
-      
-      return mockItems
-    },
-    
-    handleSearch() {
+    async handleSearch() {
       this.currentPage = 1
+      await this.loadReviewItems()
     },
     
-    onStatusChange(e) {
+    async onStatusChange(e) {
       this.statusIndex = e.detail.value
       this.currentPage = 1
+      await this.loadReviewItems()
     },
     
-    onTimeChange(e) {
+    async onTimeChange(e) {
       this.timeIndex = e.detail.value
       this.currentPage = 1
+      // 时间筛选功能待后端支持
+      // await this.loadReviewItems()
     },
     
-    changePage(page) {
+    async changePage(page) {
       if (page >= 1 && page <= this.totalPages) {
         this.currentPage = page
+        await this.loadReviewItems()
       }
     },
     
@@ -392,7 +383,7 @@ export default {
     async approveItem(item) {
       uni.showModal({
         title: '确认通过',
-        content: `确定要通过"${item.title}"的审核吗？`,
+        content: `确定要通过"${item.itemName}"的审核吗？`,
         success: async (res) => {
           if (res.confirm) {
             await this.updateItemStatus(item, 'approved')
@@ -404,7 +395,7 @@ export default {
     async rejectItem(item) {
       uni.showModal({
         title: '确认驳回',
-        content: `确定要驳回"${item.title}"的审核吗？`,
+        content: `确定要驳回"${item.itemName}"的审核吗？`,
         editable: true,
         placeholderText: '请输入驳回理由',
         success: async (res) => {
@@ -417,28 +408,27 @@ export default {
     
     async updateItemStatus(item, status, comment = '') {
       try {
-        // 模拟API请求
-        await new Promise(resolve => setTimeout(resolve, 500))
+        const response = await reviewItem(item.id, {
+          status,
+          reason: comment,
+          type: 'found'
+        })
         
-        item.status = status
-        
-        // 添加审核历史
-        if (!item.reviewHistory) {
-          item.reviewHistory = []
+        if (response.code === 200) {
+          // 更新本地数据
+          item.status = status
+          await this.loadReviewItems()
+          
+          uni.showToast({
+            title: status === 'approved' ? '审核通过' : '审核驳回',
+            icon: 'success'
+          })
+        } else {
+          uni.showToast({
+            title: response.msg || '操作失败',
+            icon: 'none'
+          })
         }
-        
-        item.reviewHistory.unshift({
-          id: Date.now(),
-          action: status === 'approved' ? '通过' : '驳回',
-          reviewer: '当前审核员',
-          time: '刚刚',
-          comment: comment || (status === 'approved' ? '信息完整，符合要求' : '信息不符合要求')
-        })
-        
-        uni.showToast({
-          title: status === 'approved' ? '审核通过' : '审核驳回',
-          icon: 'success'
-        })
         
       } catch (error) {
         uni.showToast({
@@ -450,13 +440,13 @@ export default {
     
     viewDetail(item) {
       uni.navigateTo({ 
-        url: `/pages/reviewer/item-detail?id=${item.id}&type=found` 
+        url: `/pages/user/item-detail?id=${item.id}` 
       })
     },
     
     viewMatch(match) {
       uni.navigateTo({ 
-        url: `/pages/user/item-detail?id=${match.id}&type=lost` 
+        url: `/pages/user/item-detail?id=${match.id}` 
       })
     },
     
@@ -495,22 +485,28 @@ export default {
     
     async batchUpdateStatus(status) {
       try {
-        // 模拟API请求
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        this.selectedItems.forEach(itemId => {
-          const item = this.reviewItems.find(i => i.id === itemId)
-          if (item) {
-            item.status = status
-          }
+        const response = await batchReview({
+          itemIds: this.selectedItems,
+          status,
+          type: 'found',
+          reason: status === 'approved' ? '批量通过' : '批量驳回'
         })
         
-        this.selectedItems = []
-        
-        uni.showToast({
-          title: status === 'approved' ? '批量通过成功' : '批量驳回成功',
-          icon: 'success'
-        })
+        if (response.code === 200) {
+          // 重新加载数据
+          await this.loadReviewItems()
+          this.selectedItems = []
+          
+          uni.showToast({
+            title: status === 'approved' ? '批量通过成功' : '批量驳回成功',
+            icon: 'success'
+          })
+        } else {
+          uni.showToast({
+            title: response.msg || '操作失败',
+            icon: 'none'
+          })
+        }
         
       } catch (error) {
         uni.showToast({
@@ -525,16 +521,18 @@ export default {
 
 <style scoped>
 .review-found {
-  display: flex;
+  position: relative;
   min-height: 100vh;
   background: #f5f5f5;
+  padding-top: 0;
 }
 
 .main-content {
-  flex: 1;
   margin-left: 250px;
   padding: 30rpx;
   transition: margin-left 0.3s ease;
+  min-height: 100vh;
+  background: #f5f5f5;
 }
 
 .main-content-expanded {

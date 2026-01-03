@@ -59,9 +59,9 @@ export const request = (options) => {
             resolve(response)
           } else {
             // 业务错误
-            console.error('业务错误:', response.message)
+            console.error('业务错误:', response.msg)
             uni.showToast({
-              title: response.message || '请求失败',
+              title: response.msg || '请求失败',
               icon: 'none'
             })
             reject(response)

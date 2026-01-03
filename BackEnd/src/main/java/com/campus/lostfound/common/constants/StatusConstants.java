@@ -31,7 +31,7 @@ public class StatusConstants {
     public static final String ITEM_STATUS_APPROVED = "approved";
     public static final String ITEM_STATUS_REJECTED = "rejected";
     public static final String ITEM_STATUS_FOUND = "found";
-    public static final String ITEM_STATUS_RECOVERED = "recovered";
+    public static final String ITEM_STATUS_RECOVERED = "claimed";
     
     /**
      * 审核动作
