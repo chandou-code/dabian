@@ -1,0 +1,18 @@
+{
+  "name": "errand-running",
+  "version": "1.0.0",
+  "description": "校园跑腿服务系统",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "vue": "^3.4.21",
+    "vuex": "^4.1.0"
+  },
+  "devDependencies": {
+    "@dcloudio/vite-plugin-uni": "^3.0.0",
+    "vite": "^5.2.8"
+  }
+}

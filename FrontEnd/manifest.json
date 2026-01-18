@@ -1,7 +1,7 @@
 {
     "name" : "FrontEnd",
-    "appid" : "__UNI__80B0D89",
-    "description" : "",
+    "appid" : "__UNI__FRONTEND",
+    "description" : "前端项目",
     "versionName" : "1.0.0",
     "versionCode" : "100",
     "transformPx" : false,
@@ -68,5 +68,5 @@
     "uniStatistics" : {
         "enable" : false
     },
-    "vueVersion" : "2"
+    "vueVersion" : "3"
 }

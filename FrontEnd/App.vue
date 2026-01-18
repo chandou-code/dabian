@@ -1,15 +1,7 @@
 <script>
-import Vue from 'vue'
-import store from './store'
-import './uni.scss'
-
-Vue.prototype.$store = store
-
 export default {
   onLaunch: function() {
     console.log('App Launch')
-    // 初始化用户状态
-    this.$store.dispatch('initUser')
   },
   onShow: function() {
     console.log('App Show')
@@ -19,6 +11,12 @@ export default {
   }
 }
 </script>
+
+<template>
+  <view>
+    <!-- 页面内容将通过路由自动渲染到这里 -->
+  </view>
+</template>
 
 <style>
 /*每个页面公共css */

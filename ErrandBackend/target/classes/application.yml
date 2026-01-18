@@ -1,0 +1,84 @@
+server:
+  port: 18083
+  servlet:
+    context-path: /api
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/campus_errand?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true&connectionCollation=utf8mb4_unicode_ci
+    username: root
+    password: 123456
+  
+  # Redis配置
+  redis:
+    host: localhost
+    port: 6379
+    password: 
+    database: 0
+    timeout: 10000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# MyBatis Plus配置
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.campus.errand.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    call-setters-on-nulls: true
+    jdbc-type-for-null: 'null'
+  global-config:
+    db-config:
+      id-type: AUTO
+      logic-delete-field: del_flag
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      table-underline: true
+    enable-sql-runner: true
+
+
+# 应用配置
+app:
+  # JWT配置
+  jwt:
+    secret: campusErrandSecretKey2024ExtendedForJwtCompliance
+    expiration: 604800000 # 7天
+    
+  # 文件上传路径
+  upload:
+    path: /uploads/
+    max-size: 10485760 # 10MB
+    
+  # 阿里云OSS配置（需要手动配置）
+  oss:
+    enabled: false
+    endpoint: 
+    access-key-id: 
+    access-key-secret: 
+    bucket-name: 
+
+# 日志配置
+logging:
+  level:
+    com.campus.errand: debug
+    org.springframework.security: debug
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+
+# AI API配置
+ai:
+  api:
+    key: sk-xnscttiarytendwlcahuumvpqtvqpibbkipejzcfxjsmjuwa
+    url: https://api.siliconflow.cn/v1/chat/completions
