@@ -41,14 +41,13 @@
     <!-- 快捷入口 -->
     <view class="quick-access">
       <view
-        class="access-item"
-        v-for="item in accessItems"
-        :key="item.key"
-        @click="navigateTo(item.path)"
-      >
-        <text class="access-icon">{{ item.icon }}</text>
-        <text class="access-name">{{ item.name }}</text>
-      </view>
+          class="access-item"
+          v-for="item in accessItems"
+          :key="item.key"
+          @click="navigateTo(item.path)"
+        >
+          <text class="access-name">{{ item.name }}</text>
+        </view>
     </view>
     
     <!-- 数据统计 -->
@@ -128,7 +127,7 @@
           :key="runner.id"
           @click="goToRunnerDetail(runner.id)"
         >
-          <image class="runner-avatar" :src="runner.avatar || '/static/default-avatar.png'" mode="aspectFill" />
+          <image class="runner-avatar" :src="runner.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg'" mode="aspectFill" />
           <view class="runner-info">
             <text class="runner-name">{{ runner.name }}</text>
             <view class="runner-rating">
@@ -171,7 +170,7 @@ import { getHomeAllData } from '../../api/errand'
 export default {
   data() {
     return {
-      currentLocation: '北京大学',
+      currentLocation: '获取位置中...',
       unreadCount: 5,
       isLoggedIn: true,
       connectionError: false,
@@ -203,32 +202,31 @@ export default {
     accessItems() {
       const user = uni.getStorageSync('user')
       const baseItems = [
-        { key: 'tasks', name: '任务大厅', icon: '📋', path: '/pages/task/task-list' },
-        { key: 'chat', name: '消息中心', icon: '💬', path: '/pages/chat/list' },
-        { key: 'map', name: '附近地图', icon: '🗺️', path: '/pages/map/index' },
-        { key: 'profile', name: '个人中心', icon: '👤', path: '/pages/user/profile' }
+        { key: 'tasks', name: '任务大厅', path: '/pages/task/task-list' },
+        { key: 'chat', name: '消息中心', path: '/pages/chat/list' },
+        { key: 'profile', name: '个人中心', path: '/pages/user/profile' }
       ]
       
       // 如果是普通用户，显示发布任务和我的订单
       if (!user || user.role === 'user') {
         return [
-          { key: 'publish', name: '发布任务', icon: '📝', path: '/pages/task/publish' },
+          { key: 'publish', name: '发布任务', path: '/pages/task/publish' },
           ...baseItems,
-          { key: 'orders', name: '我的订单', icon: '📦', path: '/pages/order/list' }
+          { key: 'orders', name: '我的订单', path: '/pages/order/list' }
         ]
       } 
       // 如果是跑腿员，显示我的接单
       else if (user.role === 'runner') {
         return [
           ...baseItems,
-          { key: 'my-orders', name: '我的接单', icon: '📋', path: '/pages/runner/order-manage' }
+          { key: 'my-orders', name: '我的接单', path: '/pages/runner/order-manage' }
         ]
       }
       // 默认显示所有入口
       return [
-        { key: 'publish', name: '发布任务', icon: '📝', path: '/pages/task/publish' },
+        { key: 'publish', name: '发布任务', path: '/pages/task/publish' },
         ...baseItems,
-        { key: 'orders', name: '我的订单', icon: '📦', path: '/pages/order/list' }
+        { key: 'orders', name: '我的订单', path: '/pages/order/list' }
       ]
     }
   },
@@ -237,15 +235,72 @@ export default {
     // 跑腿服务不需要登录，直接显示数据
     this.isLoggedIn = true
     this.loadRealData()
+    this.getCurrentLocation()
   },
-
+  
   onShow() {
     // 每次显示时重新加载数据
     this.isLoggedIn = true
     this.loadRealData()
+    this.getCurrentLocation()
   },
 
   methods: {
+    // 获取当前位置
+    getCurrentLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords
+            this.getAddressFromCoords(latitude, longitude)
+          },
+          (error) => {
+            console.error('获取位置失败:', error)
+            this.currentLocation = '当前位置'
+            // 使用默认坐标获取地址
+            this.getAddressFromCoords(39.908823, 116.397470)
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+          }
+        )
+      } else {
+        this.currentLocation = '当前位置'
+        // 使用默认坐标获取地址
+        this.getAddressFromCoords(39.908823, 116.397470)
+      }
+    },
+    
+    // 根据坐标获取地址
+    getAddressFromCoords(latitude, longitude) {
+      // 使用JSONP解决跨域问题
+      const callbackName = `jsonp_${Date.now()}`
+      const url = `https://apis.map.qq.com/ws/geocoder/v1/?location=${latitude},${longitude}&key=PROBZ-W7JCI-NTUGC-UQYP7-2HRMH-TEFQN&output=jsonp&callback=${callbackName}`
+      
+      // 创建script标签
+      const script = document.createElement('script')
+      script.src = url
+      script.type = 'text/javascript'
+      
+      // 定义回调函数
+      window[callbackName] = (res) => {
+        if (res.status === 0) {
+          // 更新当前位置
+          this.currentLocation = res.result.formatted_addresses.recommend
+        } else {
+          this.currentLocation = '获取地址失败'
+        }
+        // 移除script标签和回调函数
+        document.body.removeChild(script)
+        delete window[callbackName]
+      }
+      
+      // 添加到页面
+      document.body.appendChild(script)
+    },
+    
     // 检查URL参数中的Token
     checkURLToken() {
       try {
@@ -348,7 +403,10 @@ export default {
           
           // 更新推荐跑腿员数据
           if (data.recommendedRunners) {
-            this.recommendedRunners = data.recommendedRunners
+            this.recommendedRunners = data.recommendedRunners.map(runner => ({
+              ...runner,
+              avatar: runner.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg'
+            }))
             console.log('成功加载推荐跑腿员数据:', this.recommendedRunners)
           }
           
@@ -400,8 +458,23 @@ export default {
         }
       ]
       
-      // 推荐跑腿员数据 - 清空，让后端提供真实数据
-      this.recommendedRunners = []
+      // 推荐跑腿员数据
+      this.recommendedRunners = [
+        {
+          id: 'R001',
+          name: '跑腿员小李',
+          avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
+          rating: 5.0,
+          orderCount: 156
+        },
+        {
+          id: 'R002',
+          name: '快递达人',
+          avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
+          rating: 4.8,
+          orderCount: 89
+        }
+      ]
       
       // 用户统计数据
       this.userStats = {
@@ -515,26 +588,28 @@ export default {
     async loadRecommendedRunners() {
       try {
         // 尝试调用API获取数据
-        // const response = await request.get('/runners/recommended')
-        // this.recommendedRunners = response.data || []
+        const response = await request.get('/home/recommended-runners')
+        this.recommendedRunners = response.data || []
         
-        // 使用模拟数据
-        this.recommendedRunners = [
-          {
-            id: 'R001',
-            name: '跑腿员小李',
-            avatar: '/static/avatar1.png',
-            rating: 5.0,
-            orderCount: 156
-          },
-          {
-            id: 'R002',
-            name: '快递达人',
-            avatar: '/static/avatar2.png',
-            rating: 4.8,
-            orderCount: 89
-          }
-        ]
+        // 如果没有数据，使用模拟数据
+        if (!this.recommendedRunners || this.recommendedRunners.length === 0) {
+          this.recommendedRunners = [
+            {
+              id: 'R001',
+              name: '跑腿员小李',
+              avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
+              rating: 5.0,
+              orderCount: 156
+            },
+            {
+              id: 'R002',
+              name: '快递达人',
+              avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
+              rating: 4.8,
+              orderCount: 89
+            }
+          ]
+        }
       } catch (error) {
         console.error('加载推荐跑腿员失败:', error)
         // 使用模拟数据
@@ -542,14 +617,14 @@ export default {
           {
             id: 'R001',
             name: '跑腿员小李',
-            avatar: '/static/avatar1.png',
+            avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
             rating: 5.0,
             orderCount: 156
           },
           {
             id: 'R002',
             name: '快递达人',
-            avatar: '/static/avatar2.png',
+            avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
             rating: 4.8,
             orderCount: 89
           }
@@ -739,15 +814,13 @@ export default {
     display: flex;
     flex-direction: column;
     align-items: center;
-    
-    .access-icon {
-      font-size: 60rpx;
-      margin-bottom: 12rpx;
-    }
+    justify-content: center;
+    height: 100rpx;
     
     .access-name {
       font-size: 24rpx;
       color: #333;
+      font-weight: 500;
     }
   }
 }

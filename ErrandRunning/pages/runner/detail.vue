@@ -3,7 +3,7 @@
     <!-- 顶部信息 -->
     <view class="header">
       <image class="bg" src="/static/profile-bg.png" mode="aspectFill"></image>
-      <image class="avatar" :src="runner.avatar" mode="aspectFill"></image>
+      <image class="avatar" :src="runner.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg'" mode="aspectFill"></image>
       <text class="name">{{ runner.nickname }}</text>
       <view class="badges">
         <text class="badge verified" v-if="runner.isVerified">已认证</text>
@@ -145,7 +145,7 @@ export default {
           this.runner = {
             id: userData.id,
             nickname: userData.nickname || userData.username,
-            avatar: userData.avatar || '/static/avatar4.png',
+            avatar: userData.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
             rating: userData.goodRate || 0,
             completeCount: userData.publishCount || 0,
             creditScore: Math.round((userData.goodRate || 0) * 2), // 信用分从好评率转换

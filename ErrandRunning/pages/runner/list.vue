@@ -33,7 +33,7 @@
       >
         <view class="card-header">
           <view class="runner-info">
-            <image class="avatar" :src="runner.avatar" mode="aspectFill"></image>
+            <image class="avatar" :src="runner.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg'" mode="aspectFill"></image>
             <view class="info-detail">
               <text class="username">{{ runner.nickname }}</text>
               <view class="badges">
@@ -90,7 +90,7 @@ export default {
         {
           id: 'R001',
           nickname: '跑腿员小李',
-          avatar: '/static/avatar1.png',
+          avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
           rating: 5.0,
           reviewCount: 128,
           completeCount: 256,

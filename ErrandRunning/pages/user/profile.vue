@@ -190,16 +190,16 @@
     <!-- 底部操作 -->
     <view class="footer-actions">
       <uni-button class="btn btn-primary" @click="editProfile">
-        ✏️ 编辑资料
+        编辑资料
       </uni-button>
       <uni-button class="btn btn-primary" @click="applyForRunner" v-if="userRole === 'user'">
-        📝 申请跑腿员
+        申请跑腿员
       </uni-button>
       <uni-button class="btn btn-primary" @click="acceptTasks" v-if="userRole === 'runner'">
-        📋 我的接单
+        我的接单
       </uni-button>
       <uni-button class="btn btn-secondary" @click="handleLogout">
-        🚪 退出登录
+        退出登录
       </uni-button>
     </view>
     </view>
@@ -216,7 +216,7 @@ export default {
       userInfo: {
         id: '',
         nickname: '',
-        avatar: '/static/avatar4.png',
+        avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
         phone: '',
         isVerified: true,
         isVip: false,
@@ -274,7 +274,7 @@ export default {
           this.userInfo = {
             id: userData.id,
             nickname: userData.nickname || userData.realName || userData.username || '用户',
-            avatar: userData.avatar || '/static/avatar4.png',
+            avatar: userData.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
             phone: userData.phone || '',
             isVerified: true,
             isVip: false,
@@ -295,7 +295,7 @@ export default {
             },
             reviews: (userData.givenReviews || []).map(review => ({
               nickname: review.revieweeName || '用户',
-              avatar: review.revieweeAvatar || '/static/avatar1.png',
+              avatar: review.revieweeAvatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
               rating: review.rating,
               time: this.formatDate(review.createTime),
               content: review.content || '',
@@ -316,7 +316,7 @@ export default {
           this.userInfo = {
             id: user.id,
             nickname: user.realName || user.username || user.nickname || '用户',
-            avatar: user.avatar || '/static/avatar4.png',
+            avatar: user.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
             phone: user.phone || '',
             isVerified: true,
             isVip: false,
@@ -375,7 +375,7 @@ export default {
             reviews: [
               {
                 nickname: '张同学',
-                avatar: '/static/avatar1.png',
+                avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
                 rating: 5,
                 time: '昨天',
                 content: '服务态度很好，速度很快，强烈推荐！',
@@ -383,7 +383,7 @@ export default {
               },
               {
                 nickname: '李同学',
-                avatar: '/static/avatar2.png',
+                avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
                 rating: 5,
                 time: '3天前',
                 content: '非常负责任，一直保持联系',
@@ -405,7 +405,7 @@ export default {
             reviews: [
               {
                 nickname: '跑腿员小李',
-                avatar: '/static/avatar3.png',
+                avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
                 rating: 5,
                 time: '2天前',
                 content: '用户很友善，配合度高',

@@ -109,7 +109,7 @@ export default {
       },
       selfInfo: {
         id: 'SELF',
-        avatar: '/static/my-avatar.png'
+        avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg'
       },
       messages: [],
       inputText: '',
@@ -136,7 +136,7 @@ export default {
     this.userInfo = {
       id: this.userId,
       name: this.userName,
-      avatar: '/static/avatar1.png',
+      avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
       taskId: 'T20250103001'
     }
 

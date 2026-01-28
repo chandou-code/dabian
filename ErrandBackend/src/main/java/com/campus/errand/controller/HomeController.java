@@ -111,7 +111,7 @@ public class HomeController {
                 Map<String, Object> runnerMap = new HashMap<>();
                 runnerMap.put("id", runner.getId());
                 runnerMap.put("name", runner.getNickname() != null ? runner.getNickname() : runner.getRealName() != null ? runner.getRealName() : runner.getUsername());
-                runnerMap.put("avatar", runner.getAvatar() != null ? runner.getAvatar() : "/static/default-avatar.png");
+                runnerMap.put("avatar", runner.getAvatar() != null ? runner.getAvatar() : "/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg");
                 
                 // 获取跑腿员的评分数据
                 int goodRate = userService.calculateGoodRate(runner.getId());
@@ -221,7 +221,7 @@ public class HomeController {
                 Map<String, Object> runnerMap = new HashMap<>();
                 runnerMap.put("id", runner.getId());
                 runnerMap.put("name", runner.getNickname() != null ? runner.getNickname() : runner.getRealName() != null ? runner.getRealName() : runner.getUsername());
-                runnerMap.put("avatar", runner.getAvatar() != null ? runner.getAvatar() : "/static/default-avatar.png");
+                runnerMap.put("avatar", runner.getAvatar() != null ? runner.getAvatar() : "/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg");
                 
                 int goodRate = userService.calculateGoodRate(runner.getId());
                 int orderCount = userService.getPublishTaskCount(runner.getId());

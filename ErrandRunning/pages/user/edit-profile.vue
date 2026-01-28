@@ -206,7 +206,7 @@ export default {
           this.userInfo = {
             id: response.data.id,
             nickname: response.data.nickname || '',
-            avatar: response.data.avatar || '/static/avatar4.png',
+            avatar: response.data.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
             phone: response.data.phone || '',
             email: response.data.email || '',
             signature: response.data.signature || '',

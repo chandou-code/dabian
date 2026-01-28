@@ -51,66 +51,78 @@
         <!-- 取货地址 -->
         <view class="form-item">
           <view class="form-label">取货地址</view>
-          <view class="address-card" @click="choosePickupAddress">
-            <text class="address-icon">📍</text>
-            <view class="address-info">
-              <text class="address-text">{{ formData.pickupAddress || '点击选择取货地址' }}</text>
-              <text class="address-detail">{{ formData.pickupDetail || '' }}</text>
+          <view class="address-section">
+            <view class="address-preview" @click="openPickupMap">
+              <view class="address-icon">📍</view>
+              <view class="address-info">
+                <text class="address-main">{{ formData.pickupAddress || '点击选择取货地址' }}</text>
+                <text class="address-detail">{{ formData.pickupDetail || '' }}</text>
+              </view>
+              <view class="address-arrow">›</view>
             </view>
-            <text class="arrow">›</text>
           </view>
         </view>
         
         <!-- 送达地址 -->
         <view class="form-item">
           <view class="form-label">送达地址</view>
-          <view class="address-card" @click="chooseDeliveryAddress">
-            <text class="address-icon">🎯</text>
-            <view class="address-info">
-              <text class="address-text">{{ formData.deliveryAddress || '点击选择送达地址' }}</text>
-              <text class="address-detail">{{ formData.deliveryDetail || '' }}</text>
+          <view class="address-section">
+            <view class="address-preview" @click="openDeliveryMap">
+              <view class="address-icon">🎯</view>
+              <view class="address-info">
+                <text class="address-main">{{ formData.deliveryAddress || '点击选择送达地址' }}</text>
+                <text class="address-detail">{{ formData.deliveryDetail || '' }}</text>
+              </view>
+              <view class="address-arrow">›</view>
             </view>
-            <text class="arrow">›</text>
           </view>
         </view>
         
         <!-- 期望时间 -->
         <view class="form-item">
           <view class="form-label">期望送达时间</view>
-          <picker
-            mode="date"
-            :value="formData.expectedDate"
-            @change="onDateChange"
-          >
-            <view class="picker-item">
-              <text>{{ formData.expectedDate || '选择日期' }}</text>
-              <text class="arrow">›</text>
+          <view class="time-picker-section">
+            <view class="time-picker">
+              <picker
+                mode="date"
+                :value="formData.expectedDate"
+                @change="onDateChange"
+              >
+                <view class="picker-content">
+                  <text class="picker-label">日期</text>
+                  <text class="picker-value">{{ formData.expectedDate || '选择日期' }}</text>
+                  <text class="picker-arrow">›</text>
+                </view>
+              </picker>
             </view>
-          </picker>
-          <picker
-            mode="time"
-            :value="formData.expectedTime"
-            @change="onTimeChange"
-          >
-            <view class="picker-item">
-              <text>{{ formData.expectedTime || '选择时间' }}</text>
-              <text class="arrow">›</text>
+            <view class="time-picker">
+              <picker
+                mode="time"
+                :value="formData.expectedTime"
+                @change="onTimeChange"
+              >
+                <view class="picker-content">
+                  <text class="picker-label">时间</text>
+                  <text class="picker-value">{{ formData.expectedTime || '选择时间' }}</text>
+                  <text class="picker-arrow">›</text>
+                </view>
+              </picker>
             </view>
-          </picker>
+          </view>
         </view>
         
         <!-- 跑腿费用 -->
         <view class="form-item">
           <view class="form-label">跑腿费用</view>
-          <view class="price-section">
-            <text class="price-symbol">¥</text>
+          <view class="price-input-section">
+            <view class="price-symbol">¥</view>
             <input
               class="price-input"
               type="digit"
               v-model="formData.price"
               placeholder="0.00"
             />
-            <text class="price-hint">建议：{{ recommendedPrice }}元</text>
+            <view class="price-hint">建议：{{ recommendedPrice }}元</view>
           </view>
         </view>
         
@@ -142,7 +154,7 @@
         <!-- 图片上传 -->
         <view class="form-item">
           <view class="form-label">上传图片（选填）</view>
-          <view class="image-upload">
+          <view class="image-upload-section">
             <view class="image-list">
               <view
                 class="image-item"
@@ -167,20 +179,78 @@
     <!-- 底部按钮 -->
     <view class="footer-actions">
       <view class="total-price">
-        <text class="label">预估费用：</text>
-        <text class="price">¥{{ formData.price || '0.00' }}</text>
+        <text class="total-label">预估费用：</text>
+        <text class="total-amount">¥{{ formData.price || '0.00' }}</text>
       </view>
       <button class="publish-btn" @click="publishTask" :disabled="isPublishing">
         {{ isPublishing ? '发布中...' : '立即发布' }}
       </button>
+    </view>
+    
+    <!-- 地图选择弹窗 -->
+    <view class="map-modal" v-if="showPickupMap || showDeliveryMap">
+      <view class="map-modal-header">
+        <view class="modal-title">
+          {{ showPickupMap ? '选择取货地址' : '选择送达地址' }}
+        </view>
+        <view class="modal-actions">
+          <button class="modal-btn" @click="confirmMapSelection">确认</button>
+          <button class="modal-btn close-btn" @click="closeMapModal">取消</button>
+        </view>
+      </view>
+      
+      <!-- 地图搜索栏 -->
+      <view class="map-search-bar">
+        <view class="search-box">
+          <text class="search-icon">🔍</text>
+          <input
+            class="search-input"
+            v-model="mapSearchKeyword"
+            placeholder="搜索地址"
+            @confirm="onMapSearch"
+          />
+          <text class="clear-icon" v-if="mapSearchKeyword" @click="clearSearch">✕</text>
+        </view>
+        <button class="location-btn" @click="locateCurrentPosition">📍</button>
+      </view>
+      
+      <!-- 地图容器 -->
+      <view class="map-content">
+        <map-picker
+          ref="mapPicker"
+          :initialLocation="initialMapLocation"
+          :showRouteBtn="false"
+          @confirm="onMapConfirm"
+        />
+      </view>
+      
+      <!-- 地图选择提示 -->
+      <view class="map-tip">
+        <view class="tip-content">
+          <text class="tip-icon">📌</text>
+          <text class="tip-text">拖动地图选择位置</text>
+        </view>
+      </view>
+      
+      <!-- 搜索结果列表 -->
+      <view class="search-results" v-if="searchResults.length > 0">
+        <view class="result-item" v-for="(item, index) in searchResults" :key="index" @click="selectSearchResult(item)">
+          <text class="result-name">{{ item.name }}</text>
+          <text class="result-address">{{ item.address }}</text>
+        </view>
+      </view>
     </view>
   </view>
 </template>
 
 <script>
 import { createTask } from '@/api/errand'
+import mapPicker from '@/components/map-picker/map-picker.vue'
 
 export default {
+  components: {
+    mapPicker
+  },
   data() {
     return {
       taskTypes: [
@@ -207,7 +277,16 @@ export default {
         images: []
       },
       isPublishing: false,
-      recommendedPrice: '5.00'
+      recommendedPrice: '5.00',
+      showPickupMap: false,
+      showDeliveryMap: false,
+      mapSearchKeyword: '',
+      searchResults: [],
+      initialMapLocation: {
+        latitude: 39.908823,
+        longitude: 116.397470
+      },
+      currentLocationType: '' // 'pickup' 或 'delivery'
     }
   },
   
@@ -218,54 +297,126 @@ export default {
   },
 
   onLoad() {
-    // 如果用户已登录，自动填充电话
-    if (this.userInfo && this.userInfo.phone) {
-      this.formData.phone = this.userInfo.phone
-    }
-
     // 设置默认时间为明天
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     this.formData.expectedDate = this.formatDate(tomorrow)
+    
+    // 初始化获取当前位置
+    this.getCurrentLocation()
   },
   
-  onShow() {
-    // 获取从地图页面返回的位置数据
-    const app = getApp()
-    if (app.globalData && app.globalData.selectedLocation) {
-      const { type, data } = app.globalData.selectedLocation
-      if (type === 'pickup') {
-        this.formData.pickupAddress = data.name
-        this.formData.pickupDetail = data.address
-      } else if (type === 'delivery') {
-        this.formData.deliveryAddress = data.name
-        this.formData.deliveryDetail = data.address
-      }
-      // 清除全局数据
-      app.globalData.selectedLocation = null
-    }
-  },
-
   methods: {
+    // 获取当前位置作为地图初始位置
+    getCurrentLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            this.initialMapLocation = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            }
+          },
+          (error) => {
+            console.error('获取位置失败:', error)
+            // 使用默认位置
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+          }
+        )
+      }
+    },
+    
     // 选择任务类型
     selectType(type) {
       this.formData.type = type
     },
     
-    // 选择取货地址
-    choosePickupAddress() {
-      // 在H5环境下，使用自定义地图选择页面
-      uni.navigateTo({
-        url: '/pages/map/index?type=pickup'
+    // 打开取货地址地图
+    openPickupMap() {
+      this.currentLocationType = 'pickup'
+      this.showPickupMap = true
+      // 确保地图选择器获得焦点并定位到当前位置
+      this.$nextTick(() => {
+        if (this.$refs.mapPicker) {
+          this.$refs.mapPicker.getCurrentLocation()
+        }
       })
     },
     
-    // 选择送达地址
-    chooseDeliveryAddress() {
-      // 在H5环境下，使用自定义地图选择页面
-      uni.navigateTo({
-        url: '/pages/map/index?type=delivery'
+    // 打开送达地址地图
+    openDeliveryMap() {
+      this.currentLocationType = 'delivery'
+      this.showDeliveryMap = true
+      // 确保地图选择器获得焦点并定位到当前位置
+      this.$nextTick(() => {
+        if (this.$refs.mapPicker) {
+          this.$refs.mapPicker.getCurrentLocation()
+        }
       })
+    },
+    
+    // 关闭地图弹窗
+    closeMapModal() {
+      this.showPickupMap = false
+      this.showDeliveryMap = false
+      this.mapSearchKeyword = ''
+      this.searchResults = []
+    },
+    
+    // 确认地图选择
+    confirmMapSelection() {
+      if (this.$refs.mapPicker && this.$refs.mapPicker.selectedLocation) {
+        // 直接获取地图组件的选中位置并触发确认事件
+        this.onMapConfirm(this.$refs.mapPicker.selectedLocation)
+      }
+    },
+    
+    // 地图选择确认回调
+    onMapConfirm(location) {
+      if (this.currentLocationType === 'pickup') {
+        this.formData.pickupAddress = location.name || location.addressStr || location.address
+        this.formData.pickupDetail = location.address
+      } else if (this.currentLocationType === 'delivery') {
+        this.formData.deliveryAddress = location.name || location.addressStr || location.address
+        this.formData.deliveryDetail = location.address
+      }
+      this.closeMapModal()
+    },
+    
+    // 地图搜索
+    onMapSearch() {
+      if (!this.mapSearchKeyword.trim()) return
+      
+      // 调用地图组件的搜索方法
+      if (this.$refs.mapPicker) {
+        this.$refs.mapPicker.searchLocation(this.mapSearchKeyword)
+      }
+    },
+    
+    // 清除搜索
+    clearSearch() {
+      this.mapSearchKeyword = ''
+      this.searchResults = []
+    },
+    
+    // 定位当前位置
+    locateCurrentPosition() {
+      if (this.$refs.mapPicker) {
+        this.$refs.mapPicker.getCurrentLocation()
+      }
+    },
+    
+    // 选择搜索结果
+    selectSearchResult(item) {
+      if (this.$refs.mapPicker) {
+        this.$refs.mapPicker.selectSearchResult(item)
+      }
+      this.searchResults = []
+      this.mapSearchKeyword = ''
     },
     
     // 日期改变
@@ -416,22 +567,21 @@ export default {
         return false
       }
       
-      // 地址改为选填
-      // if (!this.formData.pickupAddress) {
-      //   uni.showToast({
-      //     title: '请选择取货地址',
-      //     icon: 'none'
-      //   })
-      //   return false
-      // }
-      // 
-      // if (!this.formData.deliveryAddress) {
-      //   uni.showToast({
-      //     title: '请选择送达地址',
-      //     icon: 'none'
-      //   })
-      //   return false
-      // }
+      if (!this.formData.pickupAddress) {
+        uni.showToast({
+          title: '请选择取货地址',
+          icon: 'none'
+        })
+        return false
+      }
+      
+      if (!this.formData.deliveryAddress) {
+        uni.showToast({
+          title: '请选择送达地址',
+          icon: 'none'
+        })
+        return false
+      }
       
       if (!this.formData.expectedDate || !this.formData.expectedTime) {
         uni.showToast({
@@ -480,11 +630,19 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/* 全局样式重置 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 .publish-page {
   display: flex;
   flex-direction: column;
   height: 100vh;
   background: #f5f5f5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .page-header {
@@ -495,10 +653,11 @@ export default {
   align-items: center;
   justify-content: center;
   border-bottom: 1rpx solid #f0f0f0;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
   
   .page-title {
     font-size: 36rpx;
-    font-weight: bold;
+    font-weight: 600;
     color: #333;
   }
 }
@@ -512,6 +671,7 @@ export default {
   background: white;
   border-radius: 16rpx;
   padding: 30rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
 }
 
 .form-item {
@@ -524,18 +684,21 @@ export default {
   
   .form-label {
     font-size: 28rpx;
-    font-weight: bold;
+    font-weight: 600;
     color: #333;
     margin-bottom: 20rpx;
+    display: block;
   }
   
   .input-count {
     font-size: 22rpx;
     color: #999;
     float: right;
+    margin-top: 10rpx;
   }
 }
 
+/* 任务类型 */
 .type-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -547,11 +710,18 @@ export default {
   border: 2rpx solid #e0e0e0;
   border-radius: 12rpx;
   text-align: center;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+  background: white;
   
   &.active {
     border-color: #2196f3;
     background: #e3f2fd;
+    transform: translateY(-2rpx);
+    box-shadow: 0 4rpx 12rpx rgba(33, 150, 243, 0.2);
+  }
+  
+  &:active {
+    transform: scale(0.98);
   }
   
   .type-icon {
@@ -566,83 +736,139 @@ export default {
   }
 }
 
+/* 表单输入 */
 .form-input {
   width: 100%;
-  height: 70rpx;
-  padding: 0 20rpx;
-  background: #f5f5f5;
-  border-radius: 8rpx;
+  height: 80rpx;
+  padding: 0 24rpx;
+  background: #fafafa;
+  border: 1rpx solid #e0e0e0;
+  border-radius: 12rpx;
   font-size: 28rpx;
+  color: #333;
+  transition: all 0.3s ease;
+  
+  &:focus {
+    outline: none;
+    background: white;
+    border-color: #2196f3;
+    box-shadow: 0 0 0 4rpx rgba(33, 150, 243, 0.1);
+  }
 }
 
 .form-textarea {
   width: 100%;
-  min-height: 150rpx;
-  padding: 20rpx;
-  background: #f5f5f5;
-  border-radius: 8rpx;
+  min-height: 180rpx;
+  padding: 24rpx;
+  background: #fafafa;
+  border: 1rpx solid #e0e0e0;
+  border-radius: 12rpx;
   font-size: 28rpx;
+  color: #333;
+  resize: vertical;
+  transition: all 0.3s ease;
+  
+  &:focus {
+    outline: none;
+    background: white;
+    border-color: #2196f3;
+    box-shadow: 0 0 0 4rpx rgba(33, 150, 243, 0.1);
+  }
 }
 
-.address-card {
+/* 地址选择 */
+.address-section {
+  margin-top: 10rpx;
+}
+
+.address-preview {
   display: flex;
   align-items: center;
-  padding: 25rpx;
-  background: #f5f5f5;
+  padding: 24rpx;
+  background: #fafafa;
+  border: 1rpx solid #e0e0e0;
   border-radius: 12rpx;
+  transition: all 0.3s ease;
+  
+  &:active {
+    background: #f0f0f0;
+  }
   
   .address-icon {
     font-size: 40rpx;
     margin-right: 20rpx;
+    color: #2196f3;
   }
   
   .address-info {
     flex: 1;
-    
-    .address-text {
-      display: block;
-      font-size: 28rpx;
-      color: #333;
-      margin-bottom: 8rpx;
-    }
-    
-    .address-detail {
-      font-size: 24rpx;
-      color: #999;
-    }
   }
   
-  .arrow {
+  .address-main {
+    display: block;
+    font-size: 28rpx;
+    color: #333;
+    margin-bottom: 8rpx;
+  }
+  
+  .address-detail {
+    display: block;
+    font-size: 24rpx;
+    color: #999;
+    line-height: 1.4;
+  }
+  
+  .address-arrow {
     font-size: 40rpx;
     color: #999;
   }
 }
 
-.picker-item {
+/* 时间选择 */
+.time-picker-section {
+  display: flex;
+  gap: 20rpx;
+}
+
+.time-picker {
+  flex: 1;
+}
+
+.picker-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 25rpx;
-  background: #f5f5f5;
+  padding: 24rpx;
+  background: #fafafa;
+  border: 1rpx solid #e0e0e0;
   border-radius: 12rpx;
-  margin-bottom: 20rpx;
+  transition: all 0.3s ease;
   
-  text {
+  .picker-label {
     font-size: 28rpx;
-    color: #333;
+    color: #666;
   }
   
-  .arrow {
+  .picker-value {
+    font-size: 28rpx;
+    color: #333;
+    flex: 1;
+    text-align: center;
+  }
+  
+  .picker-arrow {
     font-size: 32rpx;
     color: #999;
   }
 }
 
-.price-section {
+/* 价格输入 */
+.price-input-section {
   display: flex;
   align-items: center;
   padding: 20rpx;
-  background: #f5f5f5;
+  background: #fafafa;
+  border: 1rpx solid #e0e0e0;
   border-radius: 12rpx;
   
   .price-symbol {
@@ -655,104 +881,339 @@ export default {
     flex: 1;
     font-size: 48rpx;
     color: #ff5722;
-    font-weight: bold;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    text-align: left;
+    
+    &:focus {
+      outline: none;
+    }
   }
   
   .price-hint {
     font-size: 24rpx;
     color: #999;
+    margin-left: 20rpx;
   }
 }
 
-.image-upload {
-  .image-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20rpx;
-  }
+/* 图片上传 */
+.image-upload-section {
+  margin-top: 10rpx;
+}
+
+.image-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+}
+
+.image-item {
+  position: relative;
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 12rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
   
-  .image-item {
-    position: relative;
-    width: 160rpx;
-    height: 160rpx;
-    
-    image {
-      width: 100%;
-      height: 100%;
-      border-radius: 12rpx;
-    }
-    
-    .delete-btn {
-      position: absolute;
-      top: -10rpx;
-      right: -10rpx;
-      width: 40rpx;
-      height: 40rpx;
-      background: #f44336;
-      color: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24rpx;
-    }
-  }
-  
-  .add-image-btn {
-    width: 160rpx;
-    height: 160rpx;
-    border: 2rpx dashed #ddd;
+  image {
+    width: 100%;
+    height: 100%;
     border-radius: 12rpx;
+  }
+  
+  .delete-btn {
+    position: absolute;
+    top: -10rpx;
+    right: -10rpx;
+    width: 40rpx;
+    height: 40rpx;
+    background: #f44336;
+    color: white;
+    border-radius: 50%;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
+    font-size: 24rpx;
+    box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
     
-    .add-icon {
-      font-size: 48rpx;
-      color: #999;
-      margin-bottom: 10rpx;
-    }
-    
-    .add-text {
-      font-size: 22rpx;
-      color: #999;
+    &:active {
+      transform: scale(0.9);
     }
   }
 }
 
+.add-image-btn {
+  width: 160rpx;
+  height: 160rpx;
+  border: 2rpx dashed #ddd;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+  transition: all 0.3s ease;
+  
+  &:active {
+    background: #f0f0f0;
+  }
+  
+  .add-icon {
+    font-size: 48rpx;
+    color: #999;
+    margin-bottom: 10rpx;
+  }
+  
+  .add-text {
+    font-size: 22rpx;
+    color: #999;
+  }
+}
+
+/* 底部操作栏 */
 .footer-actions {
   display: flex;
   align-items: center;
   padding: 20rpx 30rpx;
   background: white;
   border-top: 1rpx solid #f0f0f0;
+  box-shadow: 0 -2rpx 8rpx rgba(0, 0, 0, 0.05);
   gap: 20rpx;
+}
+
+.total-price {
+  flex: 1;
+  display: flex;
+  align-items: center;
   
-  .total-price {
-    flex: 1;
+  .total-label {
+    font-size: 28rpx;
+    color: #666;
+  }
+  
+  .total-amount {
+    font-size: 36rpx;
+    font-weight: 600;
+    color: #ff5722;
+    margin-left: 10rpx;
+  }
+}
+
+.publish-btn {
+  flex: 1;
+  height: 88rpx;
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  color: white;
+  border: none;
+  border-radius: 44rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+  box-shadow: 0 4rpx 16rpx rgba(33, 150, 243, 0.3);
+  transition: all 0.3s ease;
+  
+  &:active {
+    transform: scale(0.98);
+    box-shadow: 0 2rpx 8rpx rgba(33, 150, 243, 0.2);
+  }
+  
+  &:disabled {
+    background: #bdbdbd;
+    box-shadow: none;
+    transform: none;
+  }
+}
+
+/* 地图弹窗 */
+.map-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: white;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.map-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 30rpx;
+  background: white;
+  border-bottom: 1rpx solid #f0f0f0;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+  z-index: 10;
+  
+  .modal-title {
+    font-size: 36rpx;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .modal-actions {
+    display: flex;
+    gap: 20rpx;
+  }
+  
+  .modal-btn {
+    padding: 12rpx 30rpx;
+    border: none;
+    border-radius: 24rpx;
+    font-size: 28rpx;
+    font-weight: 500;
+    transition: all 0.3s ease;
     
-    .label {
-      font-size: 28rpx;
+    &:active {
+      transform: scale(0.95);
+    }
+    
+    &.close-btn {
+      background: #f5f5f5;
       color: #666;
     }
     
-    .price {
-      font-size: 36rpx;
-      font-weight: bold;
-      color: #ff5722;
+    &:not(.close-btn) {
+      background: #2196f3;
+      color: white;
+    }
+  }
+}
+
+/* 地图搜索栏 */
+.map-search-bar {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  background: white;
+  border-bottom: 1rpx solid #f0f0f0;
+  z-index: 10;
+  
+  .search-box {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    height: 72rpx;
+    background: #f5f5f5;
+    border-radius: 36rpx;
+    padding: 0 24rpx;
+    gap: 16rpx;
+  }
+  
+  .search-icon {
+    font-size: 32rpx;
+    color: #999;
+  }
+  
+  .search-input {
+    flex: 1;
+    height: 100%;
+    font-size: 28rpx;
+    color: #333;
+    background: transparent;
+    border: none;
+    
+    &:focus {
+      outline: none;
     }
   }
   
-  .publish-btn {
-    flex: 1;
-    height: 80rpx;
-    background: #2196f3;
-    color: white;
+  .clear-icon {
+    font-size: 28rpx;
+    color: #999;
+    cursor: pointer;
+  }
+  
+  .location-btn {
+    width: 72rpx;
+    height: 72rpx;
+    background: #f5f5f5;
     border: none;
-    border-radius: 40rpx;
-    font-size: 32rpx;
-    font-weight: bold;
+    border-radius: 50%;
+    margin-left: 20rpx;
+    font-size: 36rpx;
+    transition: all 0.3s ease;
+    
+    &:active {
+      transform: scale(0.95);
+      background: #e0e0e0;
+    }
+  }
+}
+
+/* 地图内容 */
+.map-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 地图提示 */
+.map-tip {
+  position: absolute;
+  bottom: 20rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  
+  .tip-content {
+    display: flex;
+    align-items: center;
+    padding: 16rpx 32rpx;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border-radius: 32rpx;
+    font-size: 26rpx;
+    gap: 10rpx;
+    backdrop-filter: blur(10rpx);
+  }
+}
+
+/* 搜索结果 */
+.search-results {
+  position: absolute;
+  top: 200rpx;
+  left: 20rpx;
+  right: 20rpx;
+  max-height: 500rpx;
+  background: white;
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.1);
+  z-index: 30;
+  overflow: hidden;
+}
+
+.result-item {
+  padding: 24rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+  transition: all 0.3s ease;
+  
+  &:active {
+    background: #fafafa;
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  .result-name {
+    display: block;
+    font-size: 28rpx;
+    color: #333;
+    margin-bottom: 8rpx;
+    font-weight: 500;
+  }
+  
+  .result-address {
+    display: block;
+    font-size: 24rpx;
+    color: #999;
+    line-height: 1.4;
   }
 }
 </style>

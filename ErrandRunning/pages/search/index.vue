@@ -259,7 +259,7 @@ export default {
           this.userResults = (searchData.users || []).map(user => ({
             id: user.id,
             nickname: user.nickname || user.realName || user.username,
-            avatar: user.avatar || '/static/my-avatar.png',
+            avatar: user.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
             completeCount: 0, // 这里可以从用户统计信息中获取
             goodRate: 100 // 这里可以从用户评价中计算
           }))
@@ -334,8 +334,9 @@ export default {
     },
 
     selectLocation(location) {
-      uni.navigateTo({
-        url: `/pages/map/index?lat=${location.latitude}&lng=${location.longitude}`
+      uni.showToast({
+        title: '地图功能已关闭',
+        icon: 'none'
       })
     },
 

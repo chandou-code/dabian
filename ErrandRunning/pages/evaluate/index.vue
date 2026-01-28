@@ -11,7 +11,7 @@
     <scroll-view class="scroll-content" scroll-y>
       <!-- 跑腿员信息 -->
       <view class="runner-section" v-if="orderData.runner">
-        <image class="runner-avatar" :src="orderData.runner.avatar || '/static/default-avatar.png'" mode="aspectFill" />
+        <image class="runner-avatar" :src="orderData.runner.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg'" mode="aspectFill" />
         <view class="runner-info">
           <text class="runner-name">{{ orderData.runner.name }}</text>
           <text class="runner-tag">感谢您的使用，请为跑腿员服务评价</text>

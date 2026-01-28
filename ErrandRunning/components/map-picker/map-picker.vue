@@ -1,38 +1,13 @@
 <template>
   <view class="map-picker-container">
     <!-- 地图容器 -->
-    <map
-      id="errandMap"
-      class="map"
-      :latitude="mapCenter.latitude"
-      :longitude="mapCenter.longitude"
-      :scale="mapScale"
-      :markers="markers"
-      :polyline="polyline"
-      :show-location="true"
-      :enable-3D="true"
-      :enable-overlooking="true"
-      :enable-zoom="true"
-      :enable-scroll="true"
-      @markertap="onMarkerTap"
-      @tap="onMapTap"
-    ></map>
-    
-    <!-- 地图操作按钮 -->
-    <view class="map-controls">
-      <view class="control-btn" @click="getCurrentLocation">
-        <text class="iconfont icon-location"></text>
-        <text>定位</text>
-      </view>
-      <view class="control-btn" @click="resetMap">
-        <text class="iconfont icon-reset"></text>
-        <text>重置</text>
-      </view>
-      <view class="control-btn" @click="showRoute" v-if="showRouteBtn">
-        <text class="iconfont icon-route"></text>
-        <text>路线</text>
-      </view>
-    </view>
+    <div id="errandMap" class="map">
+      <!-- 地图中心点红点标记 -->
+      <div class="map-center-marker">
+        <div class="red-dot-shadow"></div>
+        <div class="red-dot"></div>
+      </div>
+    </div>
     
     <!-- 位置信息卡片 -->
     <view class="location-info" v-if="selectedLocation">
@@ -47,41 +22,10 @@
           <text class="address">{{ selectedLocation.address || selectedLocation.addressStr || '' }}</text>
         </view>
         <view class="location-coords">
-          <text>经度: {{ selectedLocation.longitude.toFixed(6) }}</text>
-          <text>纬度: {{ selectedLocation.latitude.toFixed(6) }}</text>
-        </view>
-        <view class="location-actions">
-          <button class="btn btn-primary" @click="confirmLocation">确认位置</button>
+          <text v-if="selectedLocation.longitude">经度: {{ selectedLocation.longitude.toFixed(6) }}</text>
+          <text v-if="selectedLocation.latitude">纬度: {{ selectedLocation.latitude.toFixed(6) }}</text>
         </view>
       </view>
-    </view>
-    
-    <!-- 搜索框 -->
-    <view class="search-box">
-      <input
-        class="search-input"
-        v-model="searchKeyword"
-        placeholder="搜索地点"
-        @confirm="searchLocation"
-      />
-      <view class="search-btn" @click="searchLocation">
-        <text>搜索</text>
-      </view>
-    </view>
-    
-    <!-- 搜索结果列表 -->
-    <view class="search-results" v-if="searchResults.length > 0">
-      <scroll-view scroll-y class="result-list">
-        <view
-          class="result-item"
-          v-for="(item, index) in searchResults"
-          :key="index"
-          @click="selectSearchResult(item)"
-        >
-          <view class="result-name">{{ item.name }}</view>
-          <view class="result-address">{{ item.address }}</view>
-        </view>
-      </scroll-view>
     </view>
   </view>
 </template>
@@ -118,12 +62,10 @@ export default {
         longitude: this.initialLocation.longitude
       },
       mapScale: this.defaultScale,
-      markers: [],
-      polyline: [],
       selectedLocation: null,
-      searchKeyword: '',
-      searchResults: [],
-      mapContext: null
+      mapInstance: null,
+      reverseGeocodingTimer: null, // 防抖定时器
+      lastGeocodingRequest: 0 // 上次请求时间戳
     }
   },
   
@@ -139,85 +81,149 @@ export default {
   methods: {
     // 初始化地图
     initMap() {
-      this.mapContext = uni.createMapContext('errandMap', this)
-      this.addCurrentLocationMarker()
-    },
-    
-    // 添加当前位置标记
-    addCurrentLocationMarker() {
-      uni.getLocation({
-        type: 'gcj02',
-        success: (res) => {
-          this.markers = [
-            {
-              id: 1,
-              latitude: res.latitude,
-              longitude: res.longitude,
-              iconPath: '/static/marker-current.png',
-              width: 30,
-              height: 30,
-              title: '我的位置'
-            }
-          ]
-        }
+      // 确保DOM已加载完成
+      this.$nextTick(() => {
+        // 创建地图实例
+        this.mapInstance = new TMap.Map('errandMap', {
+          center: new TMap.LatLng(this.mapCenter.latitude, this.mapCenter.longitude),
+          zoom: this.mapScale
+        })
+        
+        // 添加地图点击事件监听
+        this.mapInstance.on('click', (evt) => {
+          const { lat, lng } = evt.latLng
+          this.onMapTap({ detail: { latitude: lat, longitude: lng } })
+        })
+        
+        // 添加地图拖动结束事件监听
+        this.mapInstance.on('dragend', () => {
+          const center = this.mapInstance.getCenter()
+          const { lat, lng } = center
+          this.onMapTap({ detail: { latitude: lat, longitude: lng } })
+        })
+        
+        // 添加地图移动事件监听，实时更新中心点位置
+        this.mapInstance.on('pan', () => {
+          const center = this.mapInstance.getCenter()
+          const { lat, lng } = center
+          this.mapCenter = { latitude: lat, longitude: lng }
+        })
       })
     },
     
     // 获取当前位置
     getCurrentLocation() {
-      uni.getLocation({
-        type: 'gcj02',
-        altitude: true,
-        success: (res) => {
-          const location = {
-            latitude: res.latitude,
-            longitude: res.longitude,
-            altitude: res.altitude,
-            accuracy: res.accuracy,
-            name: '我的位置'
+      // 直接使用浏览器原生定位API，避免uni-app坐标转换问题
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords
+            
+            // 更新地图中心
+            this.mapCenter = {
+              latitude,
+              longitude
+            }
+            
+            // 移动地图到当前位置
+            if (this.mapInstance) {
+              this.mapInstance.setCenter(new TMap.LatLng(latitude, longitude))
+            }
+            
+            // 立即更新选中位置，显示加载状态
+            this.selectedLocation = {
+              latitude,
+              longitude,
+              name: '获取位置中...',
+              address: '请稍候...'
+            }
+            
+            // 获取详细地址
+            this.getReverseGeocoding(latitude, longitude)
+          },
+          (error) => {
+            let errorMsg = '获取位置失败'
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                errorMsg = '用户拒绝了定位请求'
+                break
+              case error.POSITION_UNAVAILABLE:
+                errorMsg = '位置信息不可用'
+                break
+              case error.TIMEOUT:
+                errorMsg = '定位超时'
+                break
+              case error.UNKNOWN_ERROR:
+                errorMsg = '发生未知错误'
+                break
+            }
+            uni.showToast({
+              title: errorMsg,
+              icon: 'none'
+            })
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
           }
-          
-          this.updateLocation(location)
-          this.mapCenter = {
-            latitude: res.latitude,
-            longitude: res.longitude
-          }
-          
-          this.addCurrentLocationMarker()
-          
-          // 获取详细地址
-          this.getReverseGeocoding(res.latitude, res.longitude)
-        },
-        fail: (err) => {
-          uni.showToast({
-            title: '获取位置失败',
-            icon: 'none'
-          })
-        }
-      })
+        )
+      } else {
+        uni.showToast({
+          title: '浏览器不支持地理定位',
+          icon: 'none'
+        })
+      }
     },
     
-    // 逆地理编码获取地址
+    // 逆地理编码获取地址 - 添加防抖和节流
     getReverseGeocoding(latitude, longitude) {
-      // 这里应该调用地图API获取详细地址
-      // 暂时使用模拟数据
-      uni.request({
-        url: `https://apis.map.qq.com/ws/geocoder/v1/`,
-        data: {
-          location: `${latitude},${longitude}`,
-          key: 'YOUR_MAP_KEY'
-        },
-        success: (res) => {
-          if (res.data.status === 0) {
-            const location = {
-              ...this.currentLocation,
-              address: res.data.result.address,
-              addressStr: res.data.result.formatted_addresses.recommend
+      const now = Date.now()
+      const requestInterval = 1000 // 请求间隔，单位：毫秒
+      
+      // 节流：如果距离上次请求不到1秒，直接返回
+      if (now - this.lastGeocodingRequest < requestInterval) {
+        return
+      }
+      
+      // 防抖：清除之前的定时器
+      if (this.reverseGeocodingTimer) {
+        clearTimeout(this.reverseGeocodingTimer)
+      }
+      
+      // 设置新的定时器，延迟500毫秒执行
+      this.reverseGeocodingTimer = setTimeout(() => {
+        // 使用JSONP解决跨域问题
+        const callbackName = `jsonp_${Date.now()}`
+        const url = `https://apis.map.qq.com/ws/geocoder/v1/?location=${latitude},${longitude}&key=PROBZ-W7JCI-NTUGC-UQYP7-2HRMH-TEFQN&output=jsonp&callback=${callbackName}`
+        
+        // 创建script标签
+        const script = document.createElement('script')
+        script.src = url
+        script.type = 'text/javascript'
+        
+        // 定义回调函数
+        window[callbackName] = (res) => {
+          if (res.status === 0) {
+            // 更新选中位置
+            this.selectedLocation = {
+              ...this.selectedLocation,
+              address: res.result.address,
+              addressStr: res.result.formatted_addresses.recommend,
+              name: res.result.formatted_addresses.recommend
             }
-            this.updateLocation(location)
           }
+          // 移除script标签和回调函数
+          document.body.removeChild(script)
+          delete window[callbackName]
         }
-      })
+        
+        // 添加到页面
+        document.body.appendChild(script)
+        
+        // 更新上次请求时间
+        this.lastGeocodingRequest = Date.now()
+      }, 500) // 防抖延迟，单位：毫秒
     },
     
     // 地图点击事件
@@ -225,194 +231,21 @@ export default {
       const { latitude, longitude } = e.detail
       this.mapCenter = { latitude, longitude }
       
-      // 添加选中标记
-      this.markers = [
-        ...this.markers.filter(m => m.id !== 2),
-        {
-          id: 2,
-          latitude,
-          longitude,
-          iconPath: '/static/marker-selected.png',
-          width: 30,
-          height: 30,
-          title: '选中位置'
-        }
-      ]
-      
+      // 立即更新选中位置，显示加载状态
       this.selectedLocation = {
         latitude,
-        longitude
+        longitude,
+        name: '获取位置中...',
+        address: '请稍候...'
       }
       
       // 获取地址
       this.getReverseGeocoding(latitude, longitude)
     },
     
-    // 标记点击事件
-    onMarkerTap(e) {
-      const marker = this.markers.find(m => m.id === e.detail.markerId)
-      if (marker) {
-        this.selectedLocation = {
-          latitude: marker.latitude,
-          longitude: marker.longitude,
-          name: marker.title
-        }
-      }
-    },
-    
-    // 搜索地点
-    searchLocation() {
-      if (!this.searchKeyword.trim()) {
-        uni.showToast({
-          title: '请输入搜索关键词',
-          icon: 'none'
-        })
-        return
-      }
-      
-      // 这里应该调用地图API搜索
-      // 暂时使用模拟数据
-      uni.request({
-        url: `https://apis.map.qq.com/ws/place/v1/search/`,
-        data: {
-          keyword: this.searchKeyword,
-          boundary: `nearby(${this.mapCenter.latitude},${this.mapCenter.longitude},1000)`,
-          key: 'YOUR_MAP_KEY'
-        },
-        success: (res) => {
-          if (res.data.status === 0) {
-            this.searchResults = res.data.data.map(item => ({
-              name: item.title,
-              address: item.address,
-              latitude: item.location.lat,
-              longitude: item.location.lng
-            }))
-          }
-        }
-      })
-    },
-    
-    // 选择搜索结果
-    selectSearchResult(item) {
-      this.mapCenter = {
-        latitude: item.latitude,
-        longitude: item.longitude
-      }
-      
-      this.markers = [
-        ...this.markers.filter(m => m.id !== 2),
-        {
-          id: 2,
-          latitude: item.latitude,
-          longitude: item.longitude,
-          iconPath: '/static/marker-selected.png',
-          width: 30,
-          height: 30,
-          title: item.name
-        }
-      ]
-      
-      this.selectedLocation = {
-        latitude: item.latitude,
-        longitude: item.longitude,
-        name: item.name,
-        address: item.address
-      }
-      
-      this.searchResults = []
-      this.searchKeyword = ''
-    },
-    
-    // 显示路线
-    showRoute() {
-      if (!this.currentLocation || !this.selectedLocation) {
-        uni.showToast({
-          title: '请先选择起点和终点',
-          icon: 'none'
-        })
-        return
-      }
-      
-      // 调用路线规划API
-      uni.request({
-        url: `https://apis.map.qq.com/ws/direction/v1/walking/`,
-        data: {
-          from: `${this.currentLocation.latitude},${this.currentLocation.longitude}`,
-          to: `${this.selectedLocation.latitude},${this.selectedLocation.longitude}`,
-          key: 'YOUR_MAP_KEY'
-        },
-        success: (res) => {
-          if (res.data.status === 0) {
-            const route = res.data.result.routes[0]
-            const polyline = route.polyline
-            
-            // 解码polyline
-            const points = this.decodePolyline(polyline)
-            
-            this.polyline = [{
-              points,
-              color: '#2196f3',
-              width: 6,
-              arrowLine: true
-            }]
-          }
-        }
-      })
-    },
-    
-    // 解码polyline
-    decodePolyline(encoded) {
-      const points = []
-      const len = encoded.length
-      let index = 0
-      let lat = 0
-      let lng = 0
-      
-      while (index < len) {
-        let b, shift = 0, result = 0
-        
-        do {
-          b = encoded.charCodeAt(index++) - 63
-          result |= (b & 0x1f) << shift
-          shift += 5
-        } while (b >= 0x20)
-        
-        const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1))
-        lat += dlat
-        shift = 0
-        result = 0
-        
-        do {
-          b = encoded.charCodeAt(index++) - 63
-          result |= (b & 0x1f) << shift
-          shift += 5
-        } while (b >= 0x20)
-        
-        const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1))
-        lng += dlng
-        
-        points.push({
-          latitude: lat / 1e5,
-          longitude: lng / 1e5
-        })
-      }
-      
-      return points
-    },
-    
-    // 确认位置
-    confirmLocation() {
-      if (this.selectedLocation) {
-        this.selectLocation(this.selectedLocation)
-        this.$emit('confirm', this.selectedLocation)
-      }
-    },
-    
     // 清除选择
     clearSelection() {
       this.selectedLocation = null
-      this.markers = this.markers.filter(m => m.id !== 2)
-      this.polyline = []
     },
     
     // 重置地图
@@ -433,41 +266,79 @@ export default {
 .map-picker-container {
   position: relative;
   width: 100%;
-  height: 100vh;
+  height: 100%;
   background: #f5f5f5;
+  overflow: hidden;
 }
 
 .map {
   width: 100%;
   height: 100%;
+  position: relative;
 }
 
-.map-controls {
+/* 地图中心点红点标记 */
+.map-center-marker {
   position: absolute;
-  top: 20rpx;
-  right: 20rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-  z-index: 100;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999;
+  pointer-events: none; /* 允许点击穿透到地图 */
 }
 
-.control-btn {
-  width: 100rpx;
-  height: 100rpx;
-  background: white;
+.red-dot {
+  width: 20rpx;
+  height: 20rpx;
+  background: #f44336;
   border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.15);
-  font-size: 24rpx;
-  color: #666;
-  
-  .iconfont {
-    font-size: 36rpx;
-    margin-bottom: 4rpx;
+  border: 4rpx solid white;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  animation: pulse 1.5s infinite;
+}
+
+.red-dot-shadow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30rpx;
+  height: 30rpx;
+  background: rgba(244, 67, 54, 0.3);
+  border-radius: 50%;
+  z-index: 999;
+  animation: shadow-pulse 1.5s infinite;
+}
+
+/* 脉冲动画 */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shadow-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0.2;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
   }
 }
 
@@ -481,6 +352,8 @@ export default {
   padding: 30rpx;
   box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.1);
   z-index: 100;
+  max-height: 400rpx;
+  overflow: auto;
 }
 
 .location-card {
@@ -527,85 +400,6 @@ export default {
   }
   
   .location-coords text {
-    font-size: 24rpx;
-    color: #999;
-  }
-  
-  .location-actions {
-    .btn {
-      width: 100%;
-      height: 88rpx;
-      border-radius: 12rpx;
-      font-size: 32rpx;
-    }
-  }
-}
-
-.search-box {
-  position: absolute;
-  top: 20rpx;
-  left: 20rpx;
-  right: 140rpx;
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-  z-index: 100;
-  
-  .search-input {
-    flex: 1;
-    height: 70rpx;
-    padding: 0 20rpx;
-    background: white;
-    border-radius: 35rpx;
-    font-size: 28rpx;
-    box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.1);
-  }
-  
-  .search-btn {
-    width: 120rpx;
-    height: 70rpx;
-    background: #2196f3;
-    color: white;
-    border-radius: 35rpx;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28rpx;
-  }
-}
-
-.search-results {
-  position: absolute;
-  top: 100rpx;
-  left: 20rpx;
-  right: 20rpx;
-  max-height: 600rpx;
-  background: white;
-  border-radius: 20rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.15);
-  z-index: 99;
-  overflow: hidden;
-}
-
-.result-list {
-  max-height: 600rpx;
-}
-
-.result-item {
-  padding: 30rpx;
-  border-bottom: 1rpx solid #f0f0f0;
-  
-  &:last-child {
-    border-bottom: none;
-  }
-  
-  .result-name {
-    font-size: 30rpx;
-    color: #333;
-    margin-bottom: 10rpx;
-  }
-  
-  .result-address {
     font-size: 24rpx;
     color: #999;
   }

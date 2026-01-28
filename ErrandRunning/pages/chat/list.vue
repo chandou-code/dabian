@@ -124,7 +124,7 @@ export default {
               id: chat.id,
               userId: otherUserId,
               name: userInfo ? userInfo.username : '用户',
-              avatar: userInfo ? userInfo.avatar : '/static/avatar1.png',
+              avatar: userInfo && userInfo.avatar ? userInfo.avatar : '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
               lastMessage: chat.lastMessage || '',
               time: this.formatTime(chat.lastMessageTime),
               unread: chat.userId1 === currentUserId ? chat.unreadCount1 : chat.unreadCount2,

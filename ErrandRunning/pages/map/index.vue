@@ -21,24 +21,13 @@
 
     <!-- 地图区域 -->
     <view class="map-wrapper">
-      <map
-        id="map"
-        class="map"
-        :latitude="mapCenter.latitude"
-        :longitude="mapCenter.longitude"
-        :scale="mapScale"
-        :markers="markers"
-        :polyline="polyline"
-        :enable-traffic="true"
-        :show-location="true"
-        @markertap="onMarkerTap"
-        @tap="onMapTap"
-      >
-        <!-- 用户位置标记 -->
-        <cover-view class="user-location" v-if="userLocation">
-          <cover-view class="location-dot"></cover-view>
-        </cover-view>
-      </map>
+      <!-- 腾讯地图容器 -->
+      <div id="tencentMap" class="map"></div>
+      <!-- 地图中心点标记 -->
+      <view class="map-center-marker">
+        <div class="red-dot-shadow"></div>
+        <div class="red-dot"></div>
+      </view>
 
       <!-- 搜索结果面板 -->
       <view class="search-results" v-if="searchResults.length > 0">
@@ -111,8 +100,6 @@ export default {
       searchKeyword: '',
       searchResults: [],
       userLocation: null,
-      markers: [],
-      polyline: [],
       showTraffic: true,
       showFilterPanel: false,
       selectedTypes: [],
@@ -155,77 +142,201 @@ export default {
       ],
       // 新增：接收页面参数
       locationType: '',
-      selectedLocation: null
+      selectedLocation: null,
+      // 腾讯地图实例
+      mapInstance: null,
+      // 地图标记
+      mapMarkers: []
     }
   },
   onLoad(options) {
     // 接收页面参数
     this.locationType = options.type || ''
+  },
+  mounted() {
+    // 初始化地图
     this.initMap()
-    this.loadUserLocation()
-    this.loadNearbyTasks()
   },
   methods: {
     initMap() {
-      // 初始化地图
-      this.mapContext = uni.createMapContext('map', this)
+      // 确保DOM已加载完成
+      this.$nextTick(() => {
+        // 创建腾讯地图实例
+        this.mapInstance = new TMap.Map('tencentMap', {
+          center: new TMap.LatLng(this.mapCenter.latitude, this.mapCenter.longitude),
+          zoom: this.mapScale
+        })
+        
+        // 添加地图点击事件监听
+        this.mapInstance.on('click', (evt) => {
+          const { lat, lng } = evt.latLng
+          this.onMapTap({ detail: { latitude: lat, longitude: lng } })
+        })
+        
+        // 添加地图拖动结束事件监听
+        this.mapInstance.on('dragend', () => {
+          const center = this.mapInstance.getCenter()
+          const { lat, lng } = center
+          this.mapCenter = { latitude: lat, longitude: lng }
+        })
+        
+        // 加载用户位置
+        this.loadUserLocation()
+        
+        // 加载附近任务标记
+        this.loadNearbyTasks()
+      })
     },
 
     loadUserLocation() {
-      // 获取用户当前位置
-      uni.getLocation({
-        type: 'gcj02',
-        success: (res) => {
-          this.userLocation = {
-            latitude: res.latitude,
-            longitude: res.longitude
-          }
-          this.mapCenter = {
-            latitude: res.latitude,
-            longitude: res.longitude
-          }
+      // 直接使用浏览器原生定位API，避免uni-app坐标转换问题
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords
+            
+            this.userLocation = {
+              latitude,
+              longitude
+            }
+            this.mapCenter = {
+              latitude,
+              longitude
+            }
 
-          // 添加用户位置标记
-          this.markers.push({
-            id: 'user',
-            latitude: res.latitude,
-            longitude: res.longitude,
-            iconPath: '/static/marker-user.png',
+            // 如果地图实例已初始化，更新地图中心
+            if (this.mapInstance) {
+              this.mapInstance.setCenter(new TMap.LatLng(latitude, longitude))
+            }
+
+            // 添加用户位置标记
+            this.addUserLocationMarker(latitude, longitude)
+            
+            // 获取详细地址
+            this.getAddressFromCoords(latitude, longitude)
+          },
+          (err) => {
+            console.error('获取位置失败', err)
+            uni.showToast({
+              title: '获取位置失败',
+              icon: 'none'
+            })
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+          }
+        )
+      } else {
+        uni.showToast({
+          title: '浏览器不支持地理定位',
+          icon: 'none'
+        })
+      }
+    },
+    
+    // 添加用户位置标记
+    addUserLocationMarker(latitude, longitude) {
+      // 清除现有标记
+      this.clearMapMarkers()
+      
+      // 添加用户位置标记
+      const userMarker = new TMap.MultiMarker({
+        map: this.mapInstance,
+        geometries: [{
+          id: 'user',
+          position: new TMap.LatLng(latitude, longitude),
+          styleId: 'userMarkerStyle'
+        }],
+        styles: {
+          userMarkerStyle: {
             width: 30,
             height: 30,
-            zIndex: 999
-          })
-        },
-        fail: (err) => {
-          console.error('获取位置失败', err)
-          uni.showToast({
-            title: '获取位置失败',
-            icon: 'none'
-          })
+            anchor: { x: 15, y: 30 },
+            src: 'https://mapapi.qq.com/web/lbs/javascriptGL/demo/img/location.png' // 使用腾讯地图示例图标
+          }
         }
       })
+      
+      this.mapMarkers.push(userMarker)
+    },
+    
+    // 清除地图标记
+    clearMapMarkers() {
+      this.mapMarkers.forEach(layer => {
+        layer.setMap(null)
+      })
+      this.mapMarkers = []
+    },
+    
+    // 根据坐标获取地址
+    getAddressFromCoords(latitude, longitude) {
+      // 使用JSONP解决跨域问题
+      const callbackName = `jsonp_${Date.now()}`
+      const url = `https://apis.map.qq.com/ws/geocoder/v1/?location=${latitude},${longitude}&key=PROBZ-W7JCI-NTUGC-UQYP7-2HRMH-TEFQN&output=jsonp&callback=${callbackName}`
+      
+      // 创建script标签
+      const script = document.createElement('script')
+      script.src = url
+      script.type = 'text/javascript'
+      
+      // 定义回调函数
+      window[callbackName] = (res) => {
+        if (res.status === 0) {
+          // 更新当前位置信息
+          this.selectedLocation = {
+            name: res.result.formatted_addresses.recommend,
+            address: res.result.address,
+            latitude,
+            longitude
+          }
+        }
+        // 移除script标签和回调函数
+        document.body.removeChild(script)
+        delete window[callbackName]
+      }
+      
+      // 添加到页面
+      document.body.appendChild(script)
     },
 
     loadNearbyTasks() {
-      // 加载附近任务
+      // 加载附近任务标记
+      const taskMarkers = []
+      
       this.nearbyTasks.forEach((task, index) => {
-        this.markers.push({
+        taskMarkers.push({
           id: task.id,
-          latitude: task.latitude,
-          longitude: task.longitude,
-          iconPath: '/static/marker-task.png',
-          width: 30,
-          height: 30,
-          callout: {
-            content: `¥${task.price}`,
-            color: '#ffffff',
-            fontSize: 12,
-            borderRadius: 4,
-            bgColor: '#2196f3',
-            padding: 4
-          }
+          position: new TMap.LatLng(task.latitude, task.longitude),
+          styleId: 'taskMarkerStyle'
         })
       })
+      
+      // 创建任务标记图层
+      const taskMarkerLayer = new TMap.MultiMarker({
+        map: this.mapInstance,
+        geometries: taskMarkers,
+        styles: {
+          taskMarkerStyle: {
+            width: 30,
+            height: 30,
+            anchor: { x: 15, y: 30 },
+            src: 'https://mapapi.qq.com/web/lbs/javascriptGL/demo/img/marker.png' // 使用腾讯地图示例图标
+          }
+        }
+      })
+      
+      // 添加任务标记点击事件
+      taskMarkerLayer.on('click', (evt) => {
+        const markerId = evt.geometry.id
+        const task = this.nearbyTasks.find(t => t.id === markerId)
+        if (task) {
+          this.selectedTask = task
+        }
+      })
+      
+      this.mapMarkers.push(taskMarkerLayer)
     },
 
     onSearch() {
@@ -233,31 +344,41 @@ export default {
         return
       }
 
-      // TODO: 调用地图搜索API
-      // 模拟搜索结果
-      this.searchResults = [
-        {
-          name: '东门菜鸟驿站',
-          address: '学校东门北侧50米',
-          distance: '300m',
-          latitude: 39.908823,
-          longitude: 116.397470
-        },
-        {
-          name: '南门快递柜',
-          address: '学校南门西侧',
-          distance: '500m',
-          latitude: 39.907823,
-          longitude: 116.396470
-        },
-        {
-          name: '北门菜鸟驿站',
-          address: '学校北门东侧',
-          distance: '800m',
-          latitude: 39.909823,
-          longitude: 116.398470
+      // 使用腾讯地图的地点搜索API
+      const callbackName = `jsonp_${Date.now()}`
+      const url = `https://apis.map.qq.com/ws/place/v1/search/?keyword=${encodeURIComponent(this.searchKeyword)}&boundary=nearby(${this.mapCenter.latitude},${this.mapCenter.longitude},1000)&key=PROBZ-W7JCI-NTUGC-UQYP7-2HRMH-TEFQN&output=jsonp&callback=${callbackName}`
+      
+      // 创建script标签
+      const script = document.createElement('script')
+      script.src = url
+      script.type = 'text/javascript'
+      
+      // 定义回调函数
+      window[callbackName] = (res) => {
+        if (res.status === 0) {
+          // 处理搜索结果
+          this.searchResults = res.data.map(item => ({
+            name: item.title,
+            address: item.address,
+            distance: `${Math.round(item._distance)}m`,
+            latitude: item.location.lat,
+            longitude: item.location.lng
+          }))
+        } else {
+          // 搜索失败，显示空结果
+          this.searchResults = []
+          uni.showToast({
+            title: '搜索失败，请重试',
+            icon: 'none'
+          })
         }
-      ]
+        // 移除script标签和回调函数
+        document.body.removeChild(script)
+        delete window[callbackName]
+      }
+      
+      // 添加到页面
+      document.body.appendChild(script)
     },
 
     clearSearch() {
@@ -273,15 +394,30 @@ export default {
       this.searchResults = []
       this.selectedLocation = item
 
-      // 添加标记
-      this.markers.push({
-        id: 'selected-' + Date.now(),
-        latitude: item.latitude,
-        longitude: item.longitude,
-        iconPath: '/static/marker-selected.png',
-        width: 30,
-        height: 30
+      // 移动地图到选中位置
+      if (this.mapInstance) {
+        this.mapInstance.setCenter(new TMap.LatLng(item.latitude, item.longitude))
+      }
+      
+      // 添加选中位置标记
+      const selectedMarkerLayer = new TMap.MultiMarker({
+        map: this.mapInstance,
+        geometries: [{
+          id: 'selected-' + Date.now(),
+          position: new TMap.LatLng(item.latitude, item.longitude),
+          styleId: 'selectedMarkerStyle'
+        }],
+        styles: {
+          selectedMarkerStyle: {
+            width: 40,
+            height: 40,
+            anchor: { x: 20, y: 40 },
+            src: 'https://mapapi.qq.com/web/lbs/javascriptGL/demo/img/marker.png' // 使用腾讯地图示例图标
+          }
+        }
       })
+      
+      this.mapMarkers.push(selectedMarkerLayer)
       
       // 如果是从发布任务页面跳转过来的，直接返回结果
       if (this.locationType) {
@@ -336,9 +472,10 @@ export default {
 
     locateMe() {
       if (this.userLocation) {
-        this.mapCenter = {
-          latitude: this.userLocation.latitude,
-          longitude: this.userLocation.longitude
+        // 移动地图到用户位置
+        if (this.mapInstance) {
+          this.mapInstance.setCenter(new TMap.LatLng(this.userLocation.latitude, this.userLocation.longitude))
+          this.mapInstance.setZoom(15)
         }
         this.mapScale = 15
       } else {
@@ -372,12 +509,18 @@ export default {
     zoomIn() {
       if (this.mapScale < 18) {
         this.mapScale++
+        if (this.mapInstance) {
+          this.mapInstance.setZoom(this.mapScale)
+        }
       }
     },
 
     zoomOut() {
       if (this.mapScale > 5) {
         this.mapScale--
+        if (this.mapInstance) {
+          this.mapInstance.setZoom(this.mapScale)
+        }
       }
     },
 
@@ -463,6 +606,71 @@ export default {
     background: #2196f3;
     border-radius: 50%;
     box-shadow: 0 0 0 10rpx rgba(33, 150, 243, 0.3);
+  }
+}
+
+/* 地图中心点标记 */
+.map-center-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999;
+  pointer-events: none; /* 允许点击穿透到地图 */
+}
+
+.red-dot {
+  width: 20rpx;
+  height: 20rpx;
+  background: #f44336;
+  border-radius: 50%;
+  border: 4rpx solid white;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  animation: pulse 1.5s infinite;
+}
+
+.red-dot-shadow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30rpx;
+  height: 30rpx;
+  background: rgba(244, 67, 54, 0.3);
+  border-radius: 50%;
+  z-index: 999;
+  animation: shadow-pulse 1.5s infinite;
+}
+
+/* 脉冲动画 */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shadow-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0.2;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
   }
 }
 

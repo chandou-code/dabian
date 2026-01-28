@@ -95,7 +95,7 @@
       <view class="runner-section" v-if="order.runner">
         <view class="section-title">跑腿员信息</view>
         <view class="runner-card">
-          <image class="runner-avatar" :src="order.runner.avatar || '/static/default-avatar.png'" mode="aspectFill" />
+          <image class="runner-avatar" :src="order.runner.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg'" mode="aspectFill" />
           <view class="runner-info">
             <text class="runner-name">{{ order.runner.name }}</text>
             <view class="runner-rating">

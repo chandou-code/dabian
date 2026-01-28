@@ -7,6 +7,12 @@
 			}
 		},
 		{
+			"path": "pages/test/map-api-test",
+			"style": {
+				"navigationBarTitleText": "地图API测试"
+			}
+		},
+		{
 			"path": "pages/login/login",
 			"style": {
 				"navigationBarTitleText": "登录"

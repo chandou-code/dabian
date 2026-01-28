@@ -100,6 +100,10 @@ public class UserServiceImpl implements UserService {
         if (user.getRole() == null || user.getRole().isEmpty()) {
             user.setRole("user");
         }
+        // 设置默认头像
+        if (user.getAvatar() == null || user.getAvatar().isEmpty()) {
+            user.setAvatar("/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg");
+        }
         user.setStatus(1);
         user.setRegisterTime(new Date());
 
@@ -130,14 +134,24 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User getUserById(Long id) {
-        return userMapper.selectById(id);
+        User user = userMapper.selectById(id);
+        // 确保用户有头像
+        if (user != null && (user.getAvatar() == null || user.getAvatar().isEmpty())) {
+            user.setAvatar("/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg");
+        }
+        return user;
     }
 
     @Override
     public User getUserByUsername(String username) {
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(User::getUsername, username);
-        return userMapper.selectOne(queryWrapper);
+        User user = userMapper.selectOne(queryWrapper);
+        // 确保用户有头像
+        if (user != null && (user.getAvatar() == null || user.getAvatar().isEmpty())) {
+            user.setAvatar("/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg");
+        }
+        return user;
     }
 
     @Override
@@ -257,7 +271,18 @@ public class UserServiceImpl implements UserService {
             LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
             queryWrapper.eq(User::getRole, "runner");
             queryWrapper.orderByDesc(User::getRegisterTime); // 按注册时间倒序排列
-            return userMapper.selectList(queryWrapper);
+            List<User> runners = userMapper.selectList(queryWrapper);
+            
+            // 确保每个跑腿员都有头像
+            if (runners != null) {
+                for (User runner : runners) {
+                    if (runner.getAvatar() == null || runner.getAvatar().isEmpty()) {
+                        runner.setAvatar("/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg");
+                    }
+                }
+            }
+            
+            return runners;
         } catch (Exception e) {
             log.error("获取推荐跑腿员失败", e);
             return null; // 异常时返回null
@@ -284,7 +309,18 @@ public class UserServiceImpl implements UserService {
             // 按创建时间倒序排序
             queryWrapper.orderByDesc(User::getRegisterTime);
             
-            return userMapper.selectPage(userPage, queryWrapper);
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<User> result = userMapper.selectPage(userPage, queryWrapper);
+            
+            // 确保每个用户都有头像
+            if (result != null && result.getRecords() != null) {
+                for (User user : result.getRecords()) {
+                    if (user.getAvatar() == null || user.getAvatar().isEmpty()) {
+                        user.setAvatar("/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg");
+                    }
+                }
+            }
+            
+            return result;
         } catch (Exception e) {
             log.error("搜索用户失败", e);
             return new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(); // 异常时返回空页
@@ -306,7 +342,18 @@ public class UserServiceImpl implements UserService {
             // 按创建时间倒序排序
             queryWrapper.orderByDesc(User::getRegisterTime);
             
-            return userMapper.selectPage(userPage, queryWrapper);
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<User> result = userMapper.selectPage(userPage, queryWrapper);
+            
+            // 确保每个用户都有头像
+            if (result != null && result.getRecords() != null) {
+                for (User user : result.getRecords()) {
+                    if (user.getAvatar() == null || user.getAvatar().isEmpty()) {
+                        user.setAvatar("/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg");
+                    }
+                }
+            }
+            
+            return result;
         } catch (Exception e) {
             log.error("获取用户列表失败", e);
             return new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(); // 异常时返回空页

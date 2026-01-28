@@ -39,7 +39,7 @@
         class="user-item"
       >
         <view class="user-info">
-          <image class="user-avatar" :src="user.avatar" mode="aspectFill"></image>
+          <image class="user-avatar" :src="user.avatar || '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg'" mode="aspectFill"></image>
           <view class="user-detail">
             <text class="user-name">{{ user.nickname || user.realName || user.username }}</text>
             <text class="user-account">{{ user.username }}</text>

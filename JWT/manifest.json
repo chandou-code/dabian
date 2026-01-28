@@ -1,6 +1,6 @@
 {
-    "name" : "ErrandRunning",
-    "appid" : "__UNI__3892820",
+    "name" : "JWT",
+    "appid" : "__UNI__377E549",
     "description" : "",
     "versionName" : "1.0.0",
     "versionCode" : "100",
@@ -17,16 +17,7 @@
             "delay" : 0
         },
         /* 模块配置 */
-        "modules" : {
-            "Maps" : {
-                "description" : "地图模块",
-                "provider" : "tencent",
-                "apiKey" : {
-                    "android" : "PROBZ-W7JCI-NTUGC-UQYP7-2HRMH-TEFQN",
-                    "ios" : "PROBZ-W7JCI-NTUGC-UQYP7-2HRMH-TEFQN"
-                }
-            }
-        },
+        "modules" : {},
         /* 应用发布信息 */
         "distribute" : {
             /* android打包配置 */
@@ -46,9 +37,8 @@
                     "<uses-permission android:name=\"android.permission.WAKE_LOCK\"/>",
                     "<uses-permission android:name=\"android.permission.FLASHLIGHT\"/>",
                     "<uses-feature android:name=\"android.hardware.camera\"/>",
-                    "<uses-permission android:name=\"android.permission.WRITE_SETTINGS\"/>",
-                    "<uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\"/>",
-                    "<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\"/>"]
+                    "<uses-permission android:name=\"android.permission.WRITE_SETTINGS\"/>"
+                ]
             },
             /* ios打包配置 */
             "ios" : {},
@@ -74,24 +64,6 @@
     },
     "mp-toutiao" : {
         "usingComponents" : true
-    },
-    /* H5特有相关 */
-    "h5" : {
-        "usingComponents" : true,
-        "router" : {
-            "mode" : "hash"
-        },
-        "optimization" : {
-            "treeShaking" : {
-                "enable" : true
-            }
-        },
-        "map" : {
-            "provider" : "tencent",
-            "apiKey" : {
-                "tencent" : "PROBZ-W7JCI-NTUGC-UQYP7-2HRMH-TEFQN"
-            }
-        }
     },
     "uniStatistics" : {
         "enable" : false

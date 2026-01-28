@@ -58,7 +58,7 @@
       </view>
 
       <!-- 发布者信息 -->
-      <view class="card">
+      <view class="card" v-if="!isPublisher">
         <view class="card-title">发布者信息</view>
         <view class="user-info">
           <image class="avatar" :src="task.publisher.avatar" mode="aspectFill"></image>
@@ -73,6 +73,13 @@
           <view class="user-actions">
             <button class="action-btn chat" @click="chatPublisher">私信</button>
           </view>
+        </view>
+      </view>
+      <!-- 自己的订单提示 -->
+      <view class="card" v-else>
+        <view class="card-title">订单信息</view>
+        <view class="self-order-tip">
+          <text class="tip-text">这是你自己发布的订单</text>
         </view>
       </view>
 
@@ -212,7 +219,8 @@ export default {
       return this.task.status === 'completed' && this.isPublisher && !this.hasEvaluated
     },
     showActions() {
-      return this.canAccept || this.canStart || this.canComplete || this.canCancel || this.canEvaluate
+      // 只有跑腿员才能显示操作栏
+      return this.userRole === 'runner' && (this.canAccept || this.canStart || this.canComplete || this.canCancel)
     }
   },
   onLoad(options) {
@@ -259,16 +267,16 @@ export default {
               mapImage: '/static/map-placeholder.png',
               images: this.parseImages(taskData.images),
               publisher: {
-                id: taskData.publisherId || '1',
-                nickname: '发布者',
-                avatar: '/static/avatar1.png',
-                creditScore: 98,
-                publishCount: 15
-              },
+            id: taskData.publisherId || '1',
+            nickname: '发布者',
+            avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
+            creditScore: 98,
+            publishCount: 15
+          },
               runner: taskData.runnerId ? {
                 id: taskData.runnerId,
                 nickname: '跑腿员',
-                avatar: '/static/avatar2.png',
+                avatar: '/static/avatars/b_29b8403823ac002ad652af4f2a429767.jpg',
                 creditScore: 95,
                 completeCount: 20
               } : null
@@ -361,8 +369,9 @@ export default {
     },
 
     viewMap() {
-      uni.navigateTo({
-        url: '/pages/map/index'
+      uni.showToast({
+        title: '地图功能已关闭',
+        icon: 'none'
       })
     },
 
@@ -834,6 +843,21 @@ export default {
         color: #999;
       }
     }
+  }
+}
+
+.self-order-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx 0;
+  background: #f5f5f5;
+  border-radius: 12rpx;
+
+  .tip-text {
+    font-size: 28rpx;
+    color: #666;
+    text-align: center;
   }
 }
 
