@@ -168,11 +168,15 @@
 import { getHomeAllData } from '../../api/errand'
 
 export default {
+  computed: {
+    isLoggedIn() {
+      return this.$store.getters.isLoggedIn
+    }
+  },
   data() {
     return {
       currentLocation: '获取位置中...',
       unreadCount: 5,
-      isLoggedIn: true,
       connectionError: false,
       
       banners: [
@@ -232,15 +236,13 @@ export default {
   },
   
   onLoad() {
-    // 跑腿服务不需要登录，直接显示数据
-    this.isLoggedIn = true
+    // 加载数据和获取位置
     this.loadRealData()
     this.getCurrentLocation()
   },
   
   onShow() {
     // 每次显示时重新加载数据
-    this.isLoggedIn = true
     this.loadRealData()
     this.getCurrentLocation()
   },
@@ -301,62 +303,7 @@ export default {
       document.body.appendChild(script)
     },
     
-    // 检查URL参数中的Token
-    checkURLToken() {
-      try {
-        // 处理hash模式下的URL参数
-        let urlParams
-        if (window.location.hash.includes('?')) {
-          // 从hash中获取参数
-          const hash = window.location.hash.substring(window.location.hash.indexOf('?'))
-          urlParams = new URLSearchParams(hash.substring(1))
-        } else {
-          // 从search中获取参数
-          urlParams = new URLSearchParams(window.location.search)
-        }
-        
-        const encodedToken = urlParams.get('token')
-        const encodedUser = urlParams.get('user')
-        const timestamp = urlParams.get('timestamp')
 
-        // 检查参数是否完整
-        if (encodedToken && encodedUser && timestamp) {
-          const elapsed = Date.now() - parseInt(timestamp)
-          const maxAge = 30 * 60 * 1000 // 30分钟
-
-          if (elapsed < maxAge) {
-            // Token有效，解码并保存
-            const token = atob(encodedToken)
-            const user = JSON.parse(atob(encodedUser))
-
-            // 保存到本地存储
-            uni.setStorageSync('token', token)
-            uni.setStorageSync('user', user)
-            this.isLoggedIn = true
-            this.loadRealData()
-            console.log('单点登录成功，用户:', user.username)
-
-            // 清除URL中的敏感参数
-            window.history.replaceState({}, document.title, '/#/')
-          } else {
-            console.log('Token已过期')
-            // 使用模拟数据
-            this.isLoggedIn = true
-            this.loadRealData()
-          }
-        } else {
-          console.log('URL参数不完整')
-          // 使用模拟数据
-          this.isLoggedIn = true
-          this.loadRealData()
-        }
-      } catch (error) {
-        console.error('检查URL Token失败:', error)
-        // 使用模拟数据
-        this.isLoggedIn = true
-        this.loadRealData()
-      }
-    },
     
     // 初始化页面
     initPage() {

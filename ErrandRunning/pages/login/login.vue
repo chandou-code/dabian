@@ -272,9 +272,9 @@ export default {
       const role = user?.role || 'user'
 
       if (role === 'admin') {
-        // 管理员跳转到管理页面（暂时跳转到首页）
+        // 管理员跳转到管理页面
         uni.reLaunch({
-          url: '/pages/index/index'
+          url: '/pages/admin/dashboard'
         })
       } else if (role === 'runner') {
         // 跑腿员跳转到任务列表

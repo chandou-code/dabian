@@ -21,7 +21,7 @@ REM 设置Git路径（使用完整路径确保兼容性）
 set GIT_CMD="C:\Program Files\Git\bin\git.exe"
 
 REM 设置仓库信息
-set REPO_URL=https://github.com/chandou-code/dabian.git
+set REPO_URL=git@github.com:chandou-code/dabian.git
 set BRANCH=main
 
 REM 1. 设置远程仓库地址

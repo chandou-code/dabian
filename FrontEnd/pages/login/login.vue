@@ -132,9 +132,6 @@ export default {
       if (!this.loginForm.password) {
         this.errors.password = '请输入密码'
         isValid = false
-      } else if (this.loginForm.password.length < 6) {
-        this.errors.password = '密码至少6个字符'
-        isValid = false
       }
       
       return isValid
